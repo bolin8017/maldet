@@ -110,7 +110,10 @@ markers = [
 [tool.coverage.run]
 source = ["src/maldet"]
 branch = true
-omit = ["src/maldet/_version.py"]
+omit = [
+    "src/maldet/_version.py",
+    "src/maldet/templates/**/*.j2",
+]
 
 [tool.coverage.report]
 exclude_also = [
