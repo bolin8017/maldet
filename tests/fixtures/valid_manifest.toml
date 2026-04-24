@@ -39,17 +39,13 @@ schema_version = 1
 
 [stages.train]
 reader = "maldet.builtins.readers:SampleCsvReader"
-extractor = "elfrfdet.features:Text256Extractor"
-model = "elfrfdet.models:make_rf"
 trainer = "maldet.trainers.sklearn_trainer:SklearnTrainer"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
 
 [stages.evaluate]
 reader = "maldet.builtins.readers:SampleCsvReader"
-extractor = "elfrfdet.features:Text256Extractor"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
 
 [stages.predict]
 reader = "maldet.builtins.readers:SampleCsvReader"
-extractor = "elfrfdet.features:Text256Extractor"
 predictor = "maldet.builtins.predictors:BatchPredictor"
