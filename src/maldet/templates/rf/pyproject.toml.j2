@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ name }}"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "maldet>=1.0",
+    "scikit-learn>=1.4",
+    "pyelftools>=0.31",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ name }}"]
