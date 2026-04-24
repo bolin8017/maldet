@@ -30,7 +30,7 @@ jobs:
       - name: Mypy
         run: uv run mypy src
       - name: Pytest
-        run: uv run pytest --cov --cov-report=xml -m "not integration and not gpu"
+        run: uv run pytest --cov --cov-report=xml --cov-report=term --cov-fail-under=80 -m "not integration and not gpu"
       - name: Upload coverage
         if: github.event_name == 'pull_request'
         uses: codecov/codecov-action@v4
