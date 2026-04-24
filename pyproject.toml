@@ -71,9 +71,6 @@ path = "src/maldet/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/maldet"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/maldet/templates" = "maldet/templates"
-
 [tool.hatch.build.targets.sdist]
 include = ["src/", "tests/", "docs/", "pyproject.toml", "README.md", "LICENSE", "CHANGELOG.md", "mkdocs.yml"]
 
