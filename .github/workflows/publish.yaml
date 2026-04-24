@@ -1,0 +1,32 @@
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for hatch-vcs if we add it later; harmless now
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.*"
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install
+        run: uv sync --all-extras --dev
+      - name: Run tests (sanity)
+        run: uv run pytest -m "not integration and not gpu"
+      - name: Build
+        run: uv build
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
+        run: uv publish
