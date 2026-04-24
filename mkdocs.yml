@@ -1,0 +1,36 @@
+site_name: maldet
+site_description: Plug-and-play malware detector framework
+site_url: https://bolin8017.github.io/maldet/
+repo_url: https://github.com/bolin8017/maldet
+repo_name: bolin8017/maldet
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Protocols: protocols.md
+  - Stages & Manifest: stages.md
+  - Config (Hydra): config.md
+  - Event Stream: events.md
+  - Scaffolding: scaffold.md
+  - API Reference: reference.md
