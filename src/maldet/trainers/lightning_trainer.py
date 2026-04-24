@@ -64,7 +64,7 @@ def _materialize_tensor(
     return x_t, y_t
 
 
-class MaldetLightningLogger(pl.loggers.Logger):  # type: ignore[misc]
+class MaldetLightningLogger(pl.loggers.Logger):
     """Adapter from Lightning's Logger API onto maldet EventLogger."""
 
     def __init__(self, delegate: EventLogger) -> None:
@@ -95,7 +95,7 @@ class MaldetLightningLogger(pl.loggers.Logger):  # type: ignore[misc]
             self._delegate.log_params({k: str(v) for k, v in d.items()})
 
 
-class MaldetProgressCallback(Callback):  # type: ignore[misc]
+class MaldetProgressCallback(Callback):
     """Emits ``epoch_begin`` / ``epoch_end`` events through the EventLogger."""
 
     def __init__(self, delegate: EventLogger) -> None:

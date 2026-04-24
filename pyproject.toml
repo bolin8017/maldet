@@ -92,12 +92,11 @@ quote-style = "double"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-warn_unused_configs = true
 mypy_path = "src"
 packages = ["maldet"]
 
 [[tool.mypy.overrides]]
-module = ["lightning.*", "torch.*", "torchmetrics.*", "mlflow.*", "hydra.*", "hydra_zen.*", "joblib.*", "sklearn.*", "pandas.*"]
+module = ["lightning.*", "torch.*", "torchmetrics.*", "mlflow.*", "hydra.*", "joblib.*", "sklearn.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

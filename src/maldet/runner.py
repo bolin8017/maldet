@@ -43,7 +43,7 @@ class StageRunner:
     def run(self, *, stage: str, config_path: Path) -> None:
         if stage not in self._manifest.lifecycle.stages:
             raise ValueError(f"stage {stage!r} not declared in manifest.lifecycle.stages")
-        stage_spec = self._manifest.stages.get(stage)  # type: ignore[call-overload]
+        stage_spec = self._manifest.stages.get(stage)
         if stage_spec is None:
             raise ValueError(f"no stages.{stage} block in maldet.toml")
 
