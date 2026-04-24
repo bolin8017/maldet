@@ -1,0 +1,2 @@
+def check() -> None:
+    pass

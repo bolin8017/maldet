@@ -1,0 +1,1 @@
+"""maldet CLI subcommands."""
