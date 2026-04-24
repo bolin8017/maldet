@@ -103,3 +103,22 @@ evaluator = "maldet.evaluators.binary:BinaryClassificationEvaluator"
 [stages.predict]
 predictor = "maldet.builtins.predictors:BatchPredictor"
 ```
+
+## Integration with lolday
+
+The lolday backend imports `DetectorManifest` from `maldet.manifest` to validate
+the base64-decoded `io.maldet.manifest` OCI image label. When lolday Phase 11b
+ships, it pins `maldet ~= 1.0` in its `backend/pyproject.toml`, gaining
+type-safe manifest validation for free.
+
+Platform-side, lolday also reads:
+
+- `/mnt/output/events.jsonl` — via a sidecar tail that POSTs each event to the
+  internal `/internal/jobs/{job_id}/events` endpoint
+- `/mnt/output/manifest.json` — stored alongside MLflow artifacts for provenance
+- `/mnt/output/metrics.json` — parsed as the canonical evaluation record
+- `/mnt/output/predictions.csv` — served back to the user via
+  `/api/v1/runs/{run_id}/artifacts/download`
+
+For the Volcano Job spec that mounts these paths and invokes `maldet run <stage>`,
+see the lolday repo's `services/job_spec.py` (Phase 11b onward).
