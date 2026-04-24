@@ -5,7 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
-## [1.0.0] — TBD
+## [1.0.0] — 2026-04-24
 
 ### Added
-- Initial public release.
+- Core framework: `Sample`, `TrainResult`, `MetricReport` dataclasses; runtime-checkable Protocols for the six layers + `EventLogger`.
+- Event stream: `CompositeEventLogger`, `JsonlEventLogger`, `StdoutEventLogger`, `MlflowEventLogger` (optional dep).
+- Manifest: `DetectorManifest` Pydantic model + discovery via `MALDET_MANIFEST` env, `./maldet.toml`, `/app/maldet.toml` fallbacks.
+- Built-ins: `SampleCsvReader`, `BatchPredictor`, `BinaryClassification`.
+- Trainers: `SklearnTrainer` (joblib save/load), `LightningTrainer` (DDP-ready via `MALDET_GPU_COUNT` / `MALDET_DISTRIBUTED_STRATEGY` env; `ModelCheckpoint` + `EarlyStopping` callbacks; DataParallel retired in favor of DDP).
+- `StageRunner` orchestrating manifest + Hydra YAML → component instantiation → stage execution; writes `manifest.json` alongside `model/`, `events.jsonl`, `metrics.json`, `predictions.csv`.
+- CLI: `maldet run train|evaluate|predict`, `maldet describe` (json/toml), `maldet check`, `maldet scaffold --template rf|cnn`.
+- mkdocs-material documentation site deployed to https://bolin8017.github.io/maldet/.
+- GitHub Actions CI (ruff + mypy + pytest with 80% coverage gate) and `v*`-triggered publish workflow (uv publish + `UV_PUBLISH_TOKEN` secret).
+- 57 unit tests + 2 integration tests (sklearn + Lightning CPU end-to-end).
