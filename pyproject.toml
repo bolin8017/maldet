@@ -96,7 +96,7 @@ mypy_path = "src"
 packages = ["maldet"]
 
 [[tool.mypy.overrides]]
-module = ["lightning.*", "torch.*", "torchmetrics.*", "mlflow.*", "hydra.*", "hydra_zen.*", "joblib.*", "sklearn.*"]
+module = ["lightning.*", "torch.*", "torchmetrics.*", "mlflow.*", "hydra.*", "hydra_zen.*", "joblib.*", "sklearn.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
