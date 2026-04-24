@@ -80,8 +80,10 @@ def test_runner_train_sklearn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     manifest.write_text(
         (FIX / "valid_manifest.toml")
         .read_text()
-        .replace("elfrfdet.features:Text256Extractor", "fakedet:Extr")
-        .replace("elfrfdet.models:make_rf", "sklearn.ensemble:RandomForestClassifier")
+        .replace(
+            'extractor = "maldet.builtins.readers:SampleCsvReader"',
+            'extractor = "fakedet:Extr"',
+        )
     )
     monkeypatch.setenv("MALDET_MANIFEST", str(manifest))
 

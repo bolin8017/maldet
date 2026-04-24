@@ -39,6 +39,8 @@ schema_version = 1
 
 [stages.train]
 reader = "maldet.builtins.readers:SampleCsvReader"
+extractor = "maldet.builtins.readers:SampleCsvReader"
+model = "sklearn.ensemble:RandomForestClassifier"
 trainer = "maldet.trainers.sklearn_trainer:SklearnTrainer"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
 
