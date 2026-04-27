@@ -27,4 +27,8 @@ jobs:
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
-        run: uv publish
+        # `--check-url` makes the upload idempotent: when a file with the same
+        # version+hash already exists on PyPI (e.g. published manually before the
+        # tag landed, or a tag re-push), uv treats it as a no-op instead of
+        # failing on the 400 "File already exists" error.
+        run: uv publish --check-url https://pypi.org/simple/
