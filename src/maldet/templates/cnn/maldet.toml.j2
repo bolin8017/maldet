@@ -43,13 +43,19 @@ extractor = "{{ name }}.features:Text256Extractor"
 model = "{{ name }}.models:make_cnn"
 trainer = "maldet.trainers.lightning_trainer:LightningTrainer"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
+config_class = "{{ name }}.configs:TrainConfig"
+params_schema = {}  # placeholder; populated by `maldet introspect-schema` (Task 1.4 / `maldet build`)
 
 [stages.evaluate]
 reader = "maldet.builtins.readers:SampleCsvReader"
 extractor = "{{ name }}.features:Text256Extractor"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
+config_class = "{{ name }}.configs:EvaluateConfig"
+params_schema = {}  # placeholder; populated by `maldet introspect-schema` (Task 1.4 / `maldet build`)
 
 [stages.predict]
 reader = "maldet.builtins.readers:SampleCsvReader"
 extractor = "{{ name }}.features:Text256Extractor"
 predictor = "maldet.builtins.predictors:BatchPredictor"
+config_class = "{{ name }}.configs:PredictConfig"
+params_schema = {}  # placeholder; populated by `maldet introspect-schema` (Task 1.4 / `maldet build`)

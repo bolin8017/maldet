@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -85,6 +85,9 @@ class StageSpec(_Frozen):
     trainer: str | None = None
     evaluator: str | None = None
     predictor: str | None = None
+    # phase 11e — typed contract
+    config_class: str  # import path "module.sub:ClassName" → Pydantic BaseModel
+    params_schema: dict[str, Any]  # JSON Schema (auto-derived by `maldet introspect-schema`)
 
 
 class DetectorManifest(_Frozen):

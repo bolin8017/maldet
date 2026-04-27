@@ -67,3 +67,39 @@ def test_json_serialization_roundtrip() -> None:
     j = m.model_dump(mode="json")
     m2 = DetectorManifest.model_validate(j)
     assert m2.detector.name == "elfrfdet"
+
+
+def test_stage_requires_config_class_and_params_schema() -> None:
+    """Phase 11e: each stage in maldet.toml must declare config_class + params_schema."""
+    bad = {
+        "detector": {"name": "x", "version": "0.1", "framework": "sklearn"},
+        "input": {"binary_format": "elf"},
+        "output": {"task": "binary_classification"},
+        "resources": {},
+        "lifecycle": {},
+        "artifacts": {"model": {"path": "model/", "type": "dir"}},
+        "stages": {"train": {"reader": "m:R"}},  # missing config_class + params_schema
+    }
+    with pytest.raises(ValidationError):
+        DetectorManifest.model_validate(bad)
+
+
+def test_stage_accepts_config_class_and_params_schema() -> None:
+    good = {
+        "detector": {"name": "x", "version": "0.1", "framework": "sklearn"},
+        "input": {"binary_format": "elf"},
+        "output": {"task": "binary_classification"},
+        "resources": {},
+        "lifecycle": {},
+        "artifacts": {"model": {"path": "model/", "type": "dir"}},
+        "stages": {
+            "train": {
+                "reader": "m:R",
+                "config_class": "elfrfdet.configs:TrainConfig",
+                "params_schema": {"type": "object", "properties": {}},
+            }
+        },
+    }
+    m = DetectorManifest.model_validate(good)
+    assert m.stages["train"].config_class == "elfrfdet.configs:TrainConfig"
+    assert m.stages["train"].params_schema == {"type": "object", "properties": {}}
