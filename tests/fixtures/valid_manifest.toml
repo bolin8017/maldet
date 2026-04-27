@@ -43,17 +43,17 @@ extractor = "maldet.builtins.readers:SampleCsvReader"
 model = "sklearn.ensemble:RandomForestClassifier"
 trainer = "maldet.trainers.sklearn_trainer:SklearnTrainer"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
-config_class = "elfrfdet.configs:TrainConfig"
+config_class = "tests.fixtures.sample_configs:TrainConfig"
 params_schema = { type = "object", properties = {} }
 
 [stages.evaluate]
 reader = "maldet.builtins.readers:SampleCsvReader"
 evaluator = "maldet.evaluators.binary:BinaryClassification"
-config_class = "elfrfdet.configs:EvaluateConfig"
+config_class = "tests.fixtures.sample_configs:EvaluateConfig"
 params_schema = { type = "object", properties = {} }
 
 [stages.predict]
 reader = "maldet.builtins.readers:SampleCsvReader"
 predictor = "maldet.builtins.predictors:BatchPredictor"
-config_class = "elfrfdet.configs:PredictConfig"
+config_class = "tests.fixtures.sample_configs:PredictConfig"
 params_schema = { type = "object", properties = {} }
