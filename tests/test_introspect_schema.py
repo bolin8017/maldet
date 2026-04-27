@@ -89,3 +89,52 @@ def test_introspect_rejects_bad_dotted_format() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["introspect-schema", "--config-class", "missing-colon-here"])
     assert result.exit_code != 0
+    assert "expected" in (result.stdout + (result.stderr or ""))
+
+
+def test_introspect_rejects_missing_module() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["introspect-schema", "--config-class", "definitely_not_a_module:Foo"]
+    )
+    assert result.exit_code != 0
+    text = result.stdout + (result.stderr or "")
+    assert "cannot import" in text
+    assert "definitely_not_a_module" in text
+
+
+def test_introspect_rejects_missing_attribute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pkg = tmp_path / "modwithoutattr"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "c.py").write_text("# empty\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["introspect-schema", "--config-class", "modwithoutattr.c:Missing"])
+    assert result.exit_code != 0
+    text = result.stdout + (result.stderr or "")
+    assert "has no attribute" in text
+    assert "Missing" in text
+
+
+def test_introspect_rejects_unset_extra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pkg = tmp_path / "default_extra"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "c.py").write_text(
+        "from pydantic import BaseModel\n" "class DefaultConfig(BaseModel):\n" "    x: int = 1\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["introspect-schema", "--config-class", "default_extra.c:DefaultConfig"]
+    )
+    assert result.exit_code != 0
+    text = result.stdout + (result.stderr or "")
+    assert "extra" in text
+    # New requirement: surface the observed value so author can tell unset/ignore/allow apart
+    assert "None" in text or "ignore" in text

@@ -20,8 +20,14 @@ def _load_class(dotted: str) -> object:
     if ":" not in dotted:
         raise typer.BadParameter(f"expected 'module.sub:Class', got {dotted!r}")
     mod_name, attr = dotted.split(":", 1)
-    mod = importlib.import_module(mod_name)
-    return getattr(mod, attr)
+    try:
+        mod = importlib.import_module(mod_name)
+    except ImportError as exc:
+        raise typer.BadParameter(f"cannot import module {mod_name!r}: {exc}") from exc
+    try:
+        return getattr(mod, attr)
+    except AttributeError as exc:
+        raise typer.BadParameter(f"module {mod_name!r} has no attribute {attr!r}") from exc
 
 
 def introspect_schema(
@@ -42,9 +48,11 @@ def introspect_schema(
     if not (isinstance(cls, type) and issubclass(cls, BaseModel)):
         typer.echo(f"error: {config_class} is not a pydantic.BaseModel subclass", err=True)
         raise typer.Exit(2)
-    if cls.model_config.get("extra") != "forbid":
+    current = cls.model_config.get("extra")
+    if current != "forbid":
         typer.echo(
-            f"error: {config_class} must set model_config = ConfigDict(extra='forbid')",
+            f"error: {config_class}: model_config['extra'] must be 'forbid' "
+            f"(got {current!r}); add model_config = ConfigDict(extra='forbid')",
             err=True,
         )
         raise typer.Exit(2)
