@@ -10,6 +10,7 @@ import typer
 from maldet._version import __version__
 from maldet.commands import check as _check
 from maldet.commands import describe as _describe
+from maldet.commands import introspect_schema as _introspect
 from maldet.commands import run as _run
 from maldet.commands import scaffold as _scaffold
 
@@ -24,6 +25,7 @@ app.add_typer(_run.app, name="run")
 app.command("describe")(_describe.describe)
 app.command("check")(_check.check)
 app.command("scaffold")(_scaffold.scaffold)
+app.command("introspect-schema")(_introspect.introspect_schema)
 
 
 @app.callback(invoke_without_command=True)
