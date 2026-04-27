@@ -17,6 +17,7 @@ class EventKind(StrEnum):
     CHECKPOINT_SAVED = "checkpoint_saved"
     WARNING = "warning"
     ERROR = "error"
+    CONFUSION_MATRIX = "confusion_matrix"
 
 
 ALL_EVENT_KINDS: tuple[str, ...] = tuple(k.value for k in EventKind)
@@ -33,6 +34,7 @@ _REQUIRED_FIELDS: dict[EventKind, tuple[str, ...]] = {
     EventKind.CHECKPOINT_SAVED: ("path",),
     EventKind.WARNING: ("message",),
     EventKind.ERROR: ("message",),
+    EventKind.CONFUSION_MATRIX: ("labels", "matrix"),
 }
 
 

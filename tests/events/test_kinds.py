@@ -19,6 +19,7 @@ def test_all_kinds_present() -> None:
         "checkpoint_saved",
         "warning",
         "error",
+        "confusion_matrix",
     }
     assert {k.value for k in EventKind} == expected
     assert set(ALL_EVENT_KINDS) == expected
