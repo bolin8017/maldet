@@ -125,4 +125,9 @@ class BinaryClassification:
         )
         for k, v in metrics.items():
             logger.log_metric(k, v)
+        logger.log_event(
+            "confusion_matrix",
+            labels=[other, self._positive],
+            matrix=cm,
+        )
         return report
