@@ -56,9 +56,13 @@ def _check_stage_config_class_strict(stage_name: str, dotted: str) -> list[str]:
         return errors
     current = cls.model_config.get("extra")
     if current != "forbid":
+        hint = (
+            "missing — add model_config = ConfigDict(extra='forbid')"
+            if current is None
+            else f"got {current!r}"
+        )
         errors.append(
-            f"[stages.{stage_name}.config_class] {dotted}: model_config['extra'] must be 'forbid' "
-            f"(got {current!r})"
+            f"[stages.{stage_name}.config_class] {dotted}: model_config['extra'] must be 'forbid' ({hint})"
         )
     return errors
 
