@@ -24,11 +24,24 @@ jobs:
         run: uv run pytest -m "not integration and not gpu"
       - name: Build
         run: uv build
+      - name: Skip if version already on PyPI
+        id: pypi_check
+        run: |
+          # Tag re-pushes (e.g. after a CI-only fix that doesn't change the
+          # wheel content meaningfully) would otherwise hit PyPI's
+          # "File already exists" 400. Treat existing-version as a no-op:
+          # PyPI is immutable, the first artifact wins, and re-publishing the
+          # same X.Y.Z is impossible by design. Yanking + new patch is the
+          # explicit path when republish is actually needed.
+          VERSION=$(grep -E '__version__\s*=' src/maldet/_version.py | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if curl -sf "https://pypi.org/pypi/maldet/${VERSION}/json" > /dev/null; then
+            echo "maldet ${VERSION} already published; skipping upload"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish to PyPI
+        if: steps.pypi_check.outputs.skip == 'false'
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
-        # `--check-url` makes the upload idempotent: when a file with the same
-        # version+hash already exists on PyPI (e.g. published manually before the
-        # tag landed, or a tag re-push), uv treats it as a no-op instead of
-        # failing on the 400 "File already exists" error.
-        run: uv publish --check-url https://pypi.org/simple/
+        run: uv publish
