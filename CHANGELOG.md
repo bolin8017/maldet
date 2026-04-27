@@ -5,6 +5,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-04-27
+
+### BREAKING
+
+- `manifest.stages.{stage}` now requires both `config_class` (import path to a Pydantic `BaseModel` subclass) and `params_schema` (JSON Schema). Manifests built with maldet ≤ 1.0 will be rejected by `DetectorManifest.model_validate`. Detector authors must rebuild against this version.
+- `BinaryClassification.evaluate` now emits the `confusion_matrix` event with labels in row-aligned order `[other_class, positive_class]` (matches sklearn `labels=[0, 1]`). The previous `[positive, other]` ordering was a latent bug — see commit `69841ec`. Downstream consumers reading `report.confusion_matrix["labels"]` may need to swap orientation.
+
+### Added
+
+- `maldet introspect-schema --config-class module.sub:Class [--out FILE]` — auto-derives JSON Schema from a stage's Pydantic config class via `cls.model_json_schema(mode="serialization")`. Used by `maldet build` to populate `manifest.stages.{stage}.params_schema` automatically.
+- `EventKind.CONFUSION_MATRIX` (`"confusion_matrix"`) — new event kind. `BinaryClassification.evaluate` emits one per evaluation, with payload `{labels: list[str], matrix: list[list[int]]}`.
+- `maldet check` strict lint: every `stage.config_class` must be a `pydantic.BaseModel` subclass with `model_config = ConfigDict(extra="forbid")`. Errors include the offending stage name.
+- Scaffold templates (`rf`, `cnn`) emit `src/{name}/configs.py` with Pydantic `TrainConfig` / `EvaluateConfig` / `PredictConfig` (`extra="forbid"`), so a fresh scaffold passes `maldet check` end-to-end.
+
+### Fixed
+
+- `BinaryClassification.evaluate` confusion matrix labels-order alignment (see BREAKING above).
+- `maldet introspect-schema` and `maldet check` produce friendly errors for import/attribute failures and unset `extra` (instead of bare tracebacks or misleading messages).
+
+### Migration
+
+For detector authors:
+1. Define one Pydantic `BaseModel` per stage (`extra="forbid"`).
+2. In `maldet.toml` each `[stages.{stage}]` block, set `config_class = "package.configs:MyConfig"` and `params_schema = {}` (placeholder; auto-populated by `maldet build`).
+3. Update CI / build pipeline to call `maldet build` (which invokes `maldet introspect-schema` per stage) — if your build is the lolday backend pipeline, no detector-side change needed beyond the manifest + configs.
+4. Run `maldet check` to verify.
+
 ## [1.0.8] — 2026-04-27
 
 ### Fixed
