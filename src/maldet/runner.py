@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,26 @@ def _model_kwargs(cfg: DictConfig) -> dict[str, Any]:
         if isinstance(k, str) and k not in _HYDRA_META_KEYS:
             result[k] = v
     return result
+
+
+def _load_with_optional_factory(trainer: Any, source_model: Path, factory: Any) -> Any:
+    """Call ``trainer.load(source_model)``, threading ``model_factory`` if accepted.
+
+    LightningTrainer.load needs ``model_factory`` to rebuild the LightningModule
+    around the saved state dict, while SklearnTrainer.load doesn't take any
+    kwargs (the joblib payload carries the class). Inspecting the signature
+    keeps the runner compatible with both without baking in trainer-specific
+    branching.
+    """
+    if factory is None:
+        return trainer.load(source_model)
+    try:
+        params = inspect.signature(trainer.load).parameters
+    except (TypeError, ValueError):
+        return trainer.load(source_model)
+    if "model_factory" in params:
+        return trainer.load(source_model, model_factory=factory)
+    return trainer.load(source_model)
 
 
 class StageRunner:
@@ -112,7 +133,9 @@ class StageRunner:
             train_spec = self._manifest.stages.get("train")
             trainer_symbol = stage_spec.trainer or (train_spec.trainer if train_spec else None)
             trainer = _load_symbol(_require(trainer_symbol, "trainer"))()
-            model = trainer.load(source_model)
+            model_symbol = stage_spec.model or (train_spec.model if train_spec else None)
+            factory = _load_symbol(model_symbol) if model_symbol else None
+            model = _load_with_optional_factory(trainer, source_model, factory)
             test_csv = Path(str(cfg.data.test_csv))
             samples_root = Path(str(cfg.paths.samples_root))
             reader = reader_cls(csv=test_csv, samples_root=samples_root)
@@ -136,7 +159,9 @@ class StageRunner:
             train_spec = self._manifest.stages.get("train")
             trainer_symbol = stage_spec.trainer or (train_spec.trainer if train_spec else None)
             trainer = _load_symbol(_require(trainer_symbol, "trainer"))()
-            model = trainer.load(source_model)
+            model_symbol = stage_spec.model or (train_spec.model if train_spec else None)
+            factory = _load_symbol(model_symbol) if model_symbol else None
+            model = _load_with_optional_factory(trainer, source_model, factory)
             predict_csv = Path(str(cfg.data.predict_csv))
             samples_root = Path(str(cfg.paths.samples_root))
             reader = reader_cls(csv=predict_csv, samples_root=samples_root)

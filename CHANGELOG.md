@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.8] — 2026-04-27
+
+### Fixed
+
+- `StageRunner` now threads `model_factory` (resolved from manifest `stages.train.model`) into `trainer.load(...)` for evaluate/predict when the trainer's signature accepts it. `LightningTrainer.load` requires the factory to rebuild the LightningModule around the saved state dict; `SklearnTrainer.load` doesn't take kwargs. Without this, CNN evaluate/predict failed with `ValueError: LightningTrainer.load requires model_factory to rebuild the module`.
+
 ## [1.0.7] — 2026-04-27
 
 ### Fixed
