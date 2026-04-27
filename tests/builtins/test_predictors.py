@@ -86,3 +86,35 @@ def test_predict_handles_no_predict_proba(tmp_path: Path) -> None:
     )
     df = pd.read_csv(out)
     assert df["pred_score"].isna().all()
+
+
+class FailingExtractor:
+    output_shape = (4,)
+    dtype = "float32"
+
+    def __init__(self, fail_shas: set[str]) -> None:
+        self._fail = fail_shas
+
+    def extract(self, sample: Sample) -> np.ndarray:
+        if sample.sha256 in self._fail:
+            raise ValueError(f"simulated extract failure on {sample.sha256}")
+        return np.arange(4, dtype=np.float32)
+
+
+def test_predict_skips_samples_when_extractor_raises_value_error(tmp_path: Path) -> None:
+    shas = [f"{i:064x}" for i in range(10)]
+    fail_shas = {shas[3], shas[7]}
+    predictor = BatchPredictor(class_names=["Benign", "Malware"])
+    out = tmp_path / "predictions.csv"
+    predictor.predict(
+        DummyModel(),
+        DummyReader(shas),
+        FailingExtractor(fail_shas),
+        out_path=out,
+        logger=NoopLogger(),
+    )
+    # Read file_name as string so the 64-hex-char identifiers don't get
+    # auto-coerced to int by pandas' inference.
+    df = pd.read_csv(out, dtype={"file_name": str})
+    assert len(df) == 8
+    assert set(df["file_name"].tolist()) == set(shas) - fail_shas

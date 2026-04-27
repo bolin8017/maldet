@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.7] — 2026-04-27
+
+### Fixed
+
+- `BinaryClassification.evaluate` and `BatchPredictor.predict` now skip samples whose extractor raises `ValueError` (with a `warning` event emitted), matching the behavior of `SklearnTrainer._materialize` / `LightningTrainer._materialize_tensor`. Same threshold (>50% skip → `RuntimeError`). Phase 11d E2E surfaced this — train ran clean (skip already in place) but evaluate/predict crashed on the first ELF sample missing `.text`.
+
 ## [1.0.6] — 2026-04-27
 
 ### Fixed

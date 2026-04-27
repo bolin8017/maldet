@@ -50,12 +50,32 @@ class BinaryClassification:
         shas: list[str] = []
         ys: list[int] = []
         mats: list[np.ndarray] = []
+        total = 0
+        skipped = 0
         for sample in reader:
             if sample.label is None:
                 raise ValueError("BinaryClassification.evaluate requires labeled samples")
+            total += 1
+            try:
+                features_one = extractor.extract(sample)
+            except ValueError as e:
+                skipped += 1
+                logger.log_event(
+                    "warning",
+                    message=(f"feature extractor failed on sample {sample.sha256}: {e}"),
+                    sample_sha256=sample.sha256,
+                )
+                continue
             shas.append(sample.sha256)
             ys.append(1 if sample.label == self._positive else 0)
-            mats.append(extractor.extract(sample))
+            mats.append(features_one)
+        if not mats:
+            raise RuntimeError("BinaryClassification.evaluate: zero usable samples")
+        if total > 0 and skipped / total > 0.5:
+            raise RuntimeError(
+                f"BinaryClassification.evaluate: too many samples skipped by feature "
+                f"extractor ({skipped}/{total})"
+            )
         features = np.stack(mats)
         y = np.asarray(ys)
 

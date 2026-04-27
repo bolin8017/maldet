@@ -56,3 +56,31 @@ def test_perfect_classifier() -> None:
     assert report.metrics["accuracy"] == 1.0
     assert report.metrics["f1"] == 1.0
     assert report.confusion_matrix["labels"] == ["Malware", "Benign"]
+
+
+class FailingExtractor:
+    output_shape = (2,)
+    dtype = "float32"
+
+    def __init__(self, fail_shas: set[str]) -> None:
+        self._fail = fail_shas
+
+    def extract(self, sample: Sample) -> np.ndarray:
+        if sample.sha256 in self._fail:
+            raise ValueError(f"simulated extract failure on {sample.sha256}")
+        if sample.label == "Malware":
+            return np.array([0.0, 1.0], dtype=np.float32)
+        return np.array([1.0, 0.0], dtype=np.float32)
+
+
+def test_evaluate_skips_samples_when_extractor_raises_value_error() -> None:
+    items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(10)]
+    fail_shas = {items[3][0], items[7][0]}
+    ev = BinaryClassification(positive_class="Malware", class_names=["Malware", "Benign"])
+    report = ev.evaluate(
+        PerfectModel(),
+        DummyReader(items),
+        FailingExtractor(fail_shas),
+        logger=NoopLogger(),
+    )
+    assert report.n_samples == 8

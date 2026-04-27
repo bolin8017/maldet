@@ -34,11 +34,29 @@ class BatchPredictor:
     ) -> Path:
         shas: list[str] = []
         mats: list[np.ndarray] = []
+        total = 0
+        skipped = 0
         for sample in reader:
+            total += 1
+            try:
+                features_one = extractor.extract(sample)
+            except ValueError as e:
+                skipped += 1
+                logger.log_event(
+                    "warning",
+                    message=(f"feature extractor failed on sample {sample.sha256}: {e}"),
+                    sample_sha256=sample.sha256,
+                )
+                continue
             shas.append(sample.sha256)
-            mats.append(extractor.extract(sample))
+            mats.append(features_one)
         if not mats:
             raise RuntimeError("BatchPredictor: no samples yielded from reader")
+        if total > 0 and skipped / total > 0.5:
+            raise RuntimeError(
+                f"BatchPredictor: too many samples skipped by feature extractor "
+                f"({skipped}/{total})"
+            )
         feat_matrix = np.stack(mats)
 
         preds = np.asarray(model.predict(feat_matrix))
