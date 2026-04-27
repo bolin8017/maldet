@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-04-27
+
+### Changed
+
+- `StageRunner` now loads the model class via `_load_symbol(stage_spec.model)` from the manifest, consistent with how `reader`, `extractor`, and `trainer` are loaded. `cfg.model` is treated as plain kwargs for the factory; Hydra meta-fields (`_target_`, `_partial_`, `_args_`, `_recursive_`, `_convert_`) are silently stripped if present, so legacy YAML still works. Removes the `hydra.utils.instantiate` dependency from the train branch.
+
+### Why
+
+- The previous `hydra_instantiate(cfg.model)` path required users to pass `_target_` in YAML, which conflicts with platforms that forbid Hydra meta-overrides on security grounds (e.g. lolday's params guard rejects `_target_` to prevent arbitrary remote code execution). Phase 11d E2E surfaced this — train jobs failed with `ConfigAttributeError: Missing key model` because the platform's rendered YAML had no `_target_` and the user couldn't supply one. After this change the manifest is the single source of truth for what factory is used; users only configure kwargs.
+
 ## [1.0.2] — 2026-04-27
 
 ### Fixed

@@ -89,8 +89,6 @@ data:
   train_csv: {train}
   test_csv: {train}
   predict_csv: {train}
-model:
-  _target_: mynn.models.make_cnn
 """
     )
     monkeypatch.setenv("MALDET_MANIFEST", str(det_dir / "maldet.toml"))

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from omegaconf import OmegaConf
 
-from maldet.runner import StageRunner
+from maldet.runner import StageRunner, _model_kwargs
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -24,7 +24,6 @@ def _write_config(tmp_path: Path, stage: str, paths: dict[str, str]) -> Path:
             "predict_csv": str(tmp_path / "predict.csv"),
         },
         "model": {
-            "_target_": "sklearn.ensemble.RandomForestClassifier",
             "n_estimators": 5,
             "random_state": 0,
         },
@@ -102,3 +101,27 @@ def test_runner_train_sklearn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
     # manifest.json should also be present for provenance
     assert (Path(paths["output_dir"]) / "manifest.json").exists()
+
+
+def test_model_kwargs_drops_legacy_hydra_meta_fields() -> None:
+    """Legacy YAML with `_target_` (or other Hydra meta-fields) still works —
+    runner now uses the manifest's stages.train.model symbol as the source of
+    truth, and silently drops Hydra meta-fields from cfg.model so they don't
+    get passed to the factory as stray kwargs."""
+    cfg = OmegaConf.create(
+        {
+            "model": {
+                "_target_": "some.legacy.path",
+                "_convert_": "partial",
+                "n_estimators": 5,
+                "random_state": 0,
+            }
+        }
+    )
+    assert _model_kwargs(cfg) == {"n_estimators": 5, "random_state": 0}
+
+
+def test_model_kwargs_handles_missing_section() -> None:
+    """When cfg has no model section, factory gets called with no kwargs."""
+    cfg = OmegaConf.create({"stage": "train"})
+    assert _model_kwargs(cfg) == {}

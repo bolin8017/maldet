@@ -70,7 +70,6 @@ data:
   test_csv: {test}
   predict_csv: {predict}
 model:
-  _target_: sklearn.ensemble.RandomForestClassifier
   n_estimators: 5
   random_state: 0
 """
