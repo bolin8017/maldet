@@ -97,9 +97,8 @@ class BinaryClassification:
         p_per, r_per, f_per, s_per = precision_recall_fscore_support(
             y, y_pred, labels=[0, 1], zero_division=0
         )
-        # Note on label order: index 0 = not-positive (first "other" class), index 1 = positive class.
-        # So the confusion_matrix.labels returns [positive_class, other_class] to match model classes_.
-        # The per_class dict keys are the actual class name strings.
+        # Row order matches sklearn ``labels=[0, 1]`` argument: row 0 = ``other`` class,
+        # row 1 = positive class. The per_class dict keys are the actual class name strings.
         other = next(c for c in self._classes if c != self._positive)
         per_class = {
             self._positive: {
@@ -122,7 +121,7 @@ class BinaryClassification:
             duration_seconds=float(time.time() - t0),
             metrics=metrics,
             per_class=per_class,
-            confusion_matrix={"labels": [self._positive, other], "matrix": cm},
+            confusion_matrix={"labels": [other, self._positive], "matrix": cm},
         )
         for k, v in metrics.items():
             logger.log_metric(k, v)

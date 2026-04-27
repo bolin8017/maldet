@@ -55,7 +55,7 @@ def test_perfect_classifier() -> None:
     assert report.n_samples == 10
     assert report.metrics["accuracy"] == 1.0
     assert report.metrics["f1"] == 1.0
-    assert report.confusion_matrix["labels"] == ["Malware", "Benign"]
+    assert report.confusion_matrix["labels"] == ["Benign", "Malware"]
 
 
 class FailingExtractor:
