@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-04-27
+
+### Fixed
+
+- `LightningTrainer.fit` now falls back to `tempfile.gettempdir()` (rather than cwd `.`) when `default_root_dir` is unset — Lightning writes its checkpoint subdir and internal log dir relative to that root, and cwd `/app` is mounted read-only under lolday's `readOnlyRootFilesystem` security context. Previously the trainer crashed at `save_checkpoint` with `OSError [Errno 30] Read-only file system: '/app/checkpoints'` after a successful training loop.
+
 ## [1.0.4] — 2026-04-27
 
 ### Changed

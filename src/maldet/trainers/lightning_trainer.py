@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -178,7 +179,12 @@ class LightningTrainer:
             Xv, yv = _materialize_tensor(val, extractor, logger=logger)  # noqa: N806
             val_dl = DataLoader(TensorDataset(Xv, yv), batch_size=self._batch_size)
 
-        ckpt_dir = Path(self._default_root_dir or ".") / "checkpoints"
+        # Default to a writable temp dir (rather than cwd) so the trainer works
+        # under read-only-rootfs deployments — Lightning writes log dirs and
+        # checkpoint files relative to ``default_root_dir`` and falls back to
+        # cwd when None, which is ``/app`` (mounted read-only) in our setup.
+        default_root_dir = self._default_root_dir or tempfile.gettempdir()
+        ckpt_dir = Path(default_root_dir) / "checkpoints"
         callbacks: list[Callback] = [
             ModelCheckpoint(
                 dirpath=str(ckpt_dir), save_top_k=self._save_top_k, monitor=self._monitor
@@ -198,7 +204,7 @@ class LightningTrainer:
             callbacks=callbacks,
             enable_progress_bar=False,
             enable_model_summary=False,
-            default_root_dir=self._default_root_dir,
+            default_root_dir=default_root_dir,
             log_every_n_steps=1,
         )
         pl_trainer.fit(model, train_dl, val_dl)

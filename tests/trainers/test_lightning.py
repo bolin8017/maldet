@@ -157,3 +157,16 @@ def test_materialize_tensor_emits_warning_event_per_skip_when_logger_provided() 
     payload = warnings_emitted[0][1]
     assert "message" in payload
     assert bad_sha in payload["message"]
+
+
+def test_fit_default_root_dir_is_writable_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without an explicit ``default_root_dir``, the trainer must fall back to
+    a writable directory (``tempfile.gettempdir()``) instead of cwd — under
+    ``readOnlyRootFilesystem`` k8s deployments the cwd is ``/app`` (RO) and
+    Lightning's checkpoint save would crash with OSError 30."""
+    monkeypatch.setenv("MALDET_GPU_COUNT", "0")
+    logger = RecordingLogger()
+    trainer = LightningTrainer(max_epochs=1)  # no default_root_dir
+    items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(8)]
+    result = trainer.fit(TinyMLP(), DummyReader(items), DummyExtractor(), logger=logger)
+    assert result.model is not None
