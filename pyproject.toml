@@ -40,7 +40,12 @@ dependencies = [
 [project.optional-dependencies]
 lightning = [
     "lightning>=2.5",
-    "torch>=2.2",
+    # Cap torch below the CUDA 12.8 cut — the lab's driver line (560.35.03 /
+    # CUDA 12.6) only supports up to CUDA 12.6 runtime. PyPI default wheels
+    # for torch 2.7+ are built against CUDA 12.8 and will refuse to
+    # _cuda_init on this driver. Loosen the ceiling once deployment drivers
+    # are upgraded.
+    "torch>=2.2,<2.7",
     "torchmetrics>=1.3",
 ]
 mlflow = ["mlflow>=2.20"]

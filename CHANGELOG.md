@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-04-27
+
+### Changed
+
+- `lightning` extra: cap `torch>=2.2,<2.7` (previously `torch>=2.2`). PyPI default wheels for torch 2.7+ are built against CUDA 12.8 and refuse to `_cuda_init` under NVIDIA driver line 560.35.03 (which tops out at CUDA 12.6). torch 2.6 wheels target CUDA 12.4, which is forward-compatible on the 12.6 driver. Loosen the upper bound once deployment drivers are upgraded past 565.
+
 ## [1.0.3] — 2026-04-27
 
 ### Changed
