@@ -43,18 +43,43 @@ def _strategy_from_env(device_count: int) -> str:
     return "auto" if device_count <= 1 else "ddp"
 
 
+_SKIP_THRESHOLD = 0.5
+
+
 def _materialize_tensor(
-    reader: SampleReader, extractor: FeatureExtractor
+    reader: SampleReader,
+    extractor: FeatureExtractor,
+    *,
+    logger: EventLogger | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     xs: list[np.ndarray] = []
     ys: list[int] = []
+    total = 0
+    skipped = 0
     for sample in reader:
-        xs.append(extractor.extract(sample))
+        total += 1
+        try:
+            features = extractor.extract(sample)
+        except ValueError as e:
+            skipped += 1
+            if logger is not None:
+                logger.log_event(
+                    "warning",
+                    message=f"feature extractor failed on sample {sample.sha256}: {e}",
+                    sample_sha256=sample.sha256,
+                )
+            continue
+        xs.append(features)
         if sample.label is None:
             raise ValueError("LightningTrainer: unlabeled sample encountered during fit")
         ys.append(1 if sample.label == "Malware" else 0)
     if not xs:
         raise RuntimeError("LightningTrainer: reader yielded zero samples")
+    if total > 0 and skipped / total > _SKIP_THRESHOLD:
+        raise RuntimeError(
+            f"LightningTrainer: too many samples skipped by feature extractor "
+            f"({skipped}/{total}); aborting to avoid training on a degenerate dataset"
+        )
     X = np.stack(xs)  # noqa: N806
     if str(X.dtype) == "uint8":
         x_t = torch.from_numpy(X.astype(np.int64))
@@ -144,13 +169,13 @@ class LightningTrainer:
         acc, dev = _accelerator_and_devices()
         strategy = _strategy_from_env(dev)
 
-        X, y = _materialize_tensor(train, extractor)  # noqa: N806
+        X, y = _materialize_tensor(train, extractor, logger=logger)  # noqa: N806
         logger.log_event("data_loaded", n_train=int(X.shape[0]))
         train_dl = DataLoader(TensorDataset(X, y), batch_size=self._batch_size, shuffle=True)
 
         val_dl: DataLoader[tuple[torch.Tensor, ...]] | None = None
         if val is not None:
-            Xv, yv = _materialize_tensor(val, extractor)  # noqa: N806
+            Xv, yv = _materialize_tensor(val, extractor, logger=logger)  # noqa: N806
             val_dl = DataLoader(TensorDataset(Xv, yv), batch_size=self._batch_size)
 
         ckpt_dir = Path(self._default_root_dir or ".") / "checkpoints"

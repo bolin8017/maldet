@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-04-27
+
+### Fixed
+- `SklearnTrainer._materialize` and `LightningTrainer._materialize_tensor` now skip samples whose feature extractor raises `ValueError`, emitting a `warning` event when an `EventLogger` is supplied. They abort with `RuntimeError` only when the skip rate exceeds 50% or zero usable samples remain. Previously the first bad sample killed the whole train run — discovered during Phase 11d E2E where ELF samples lacking a `.text` section crashed `Text256Extractor.extract`.
+- `templates/{rf,cnn}/Dockerfile.j2` now `COPY README.md` so scaffolded detectors that declare `readme = "README.md"` in `pyproject.toml` no longer hit hatchling "Readme file does not exist" at wheel build.
+
 ## [1.0.0] — 2026-04-24
 
 ### Added

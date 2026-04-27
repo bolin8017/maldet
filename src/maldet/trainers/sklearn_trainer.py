@@ -16,13 +16,34 @@ from maldet.types import TrainResult
 _MODEL_FILENAME = "model.joblib"
 
 
+_SKIP_THRESHOLD = 0.5
+
+
 def _materialize(
-    reader: SampleReader, extractor: FeatureExtractor, require_labels: bool
+    reader: SampleReader,
+    extractor: FeatureExtractor,
+    require_labels: bool,
+    *,
+    logger: EventLogger | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     xs: list[np.ndarray] = []
     ys: list[int] = []
+    total = 0
+    skipped = 0
     for sample in reader:
-        xs.append(extractor.extract(sample))
+        total += 1
+        try:
+            features = extractor.extract(sample)
+        except ValueError as e:
+            skipped += 1
+            if logger is not None:
+                logger.log_event(
+                    "warning",
+                    message=f"feature extractor failed on sample {sample.sha256}: {e}",
+                    sample_sha256=sample.sha256,
+                )
+            continue
+        xs.append(features)
         if require_labels:
             if sample.label is None:
                 raise ValueError(
@@ -31,6 +52,11 @@ def _materialize(
             ys.append(1 if sample.label == "Malware" else 0)
     if not xs:
         raise RuntimeError("SklearnTrainer: reader yielded zero samples")
+    if total > 0 and skipped / total > _SKIP_THRESHOLD:
+        raise RuntimeError(
+            f"SklearnTrainer: too many samples skipped by feature extractor "
+            f"({skipped}/{total}); aborting to avoid training on a degenerate dataset"
+        )
     X = np.stack(xs)  # noqa: N806
     y = np.asarray(ys, dtype=np.int64) if require_labels else np.empty(0, dtype=np.int64)
     return X, y
@@ -52,7 +78,7 @@ class SklearnTrainer:
         if hasattr(model, "get_params"):
             logger.log_params({k: str(v) for k, v in model.get_params().items()})
 
-        X, y = _materialize(train, extractor, require_labels=True)  # noqa: N806
+        X, y = _materialize(train, extractor, require_labels=True, logger=logger)  # noqa: N806
         logger.log_event("data_loaded", n_train=int(X.shape[0]))
 
         t0 = time.time()
@@ -61,7 +87,9 @@ class SklearnTrainer:
         logger.log_metric("train_time_seconds", duration)
 
         if val is not None:
-            Xv, yv = _materialize(val, extractor, require_labels=True)  # noqa: N806
+            Xv, yv = _materialize(  # noqa: N806
+                val, extractor, require_labels=True, logger=logger
+            )
             acc = float(accuracy_score(yv, model.predict(Xv)))
             logger.log_metric("val_accuracy", acc)
 

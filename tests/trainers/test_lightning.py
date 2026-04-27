@@ -12,7 +12,7 @@ import pytest
 import torch
 from torch import nn
 
-from maldet.trainers.lightning_trainer import LightningTrainer
+from maldet.trainers.lightning_trainer import LightningTrainer, _materialize_tensor
 from maldet.types import Sample
 
 
@@ -105,3 +105,55 @@ def test_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     loaded = trainer.load(out, model_factory=lambda: fresh)
     x = torch.tensor([[1.0, 1.0, 1.0, 1.0]])
     assert loaded(x).shape == (1, 2)
+
+
+class FailingExtractor:
+    """Raises ValueError for samples in ``fail_shas``; returns dummy features otherwise.
+
+    Mirrors the real-world Phase 11 case where ELF samples lacking ``.text`` cause
+    Text256Extractor.extract to raise ValueError.
+    """
+
+    output_shape = (4,)
+    dtype = "float32"
+
+    def __init__(self, fail_shas: set[str]) -> None:
+        self._fail = fail_shas
+
+    def extract(self, sample: Sample) -> np.ndarray:
+        if sample.sha256 in self._fail:
+            raise ValueError(f"simulated extractor failure on {sample.sha256}")
+        return np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+
+
+def test_materialize_tensor_skips_samples_when_extractor_raises_value_error() -> None:
+    items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(20)]
+    fail_shas = {items[3][0], items[7][0]}
+
+    x_t, y_t = _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas))
+
+    assert x_t.shape[0] == 18
+    assert y_t.shape[0] == 18
+
+
+def test_materialize_tensor_raises_when_more_than_half_samples_fail() -> None:
+    items = [(f"{i:064x}", "Malware") for i in range(10)]
+    fail_shas = {sha for sha, _ in items[:6]}
+
+    with pytest.raises(RuntimeError, match="too many"):
+        _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas))
+
+
+def test_materialize_tensor_emits_warning_event_per_skip_when_logger_provided() -> None:
+    items = [(f"{i:064x}", "Malware") for i in range(10)]
+    bad_sha = items[3][0]
+    fail_shas = {bad_sha}
+    logger = RecordingLogger()
+
+    _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas), logger=logger)
+
+    warnings_emitted = [e for e in logger.events if e[0] == "warning"]
+    assert len(warnings_emitted) == 1
+    payload = warnings_emitted[0][1]
+    assert "message" in payload
+    assert bad_sha in payload["message"]
