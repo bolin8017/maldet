@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-04-27
+
+### Fixed
+- CI/publish workflows: unpin `astral-sh/setup-uv@v3` from `0.4.*` so the newer lockfile format (editable dynamic packages omit the `version` field) parses correctly. v1.0.1 tagged but its publish run failed at `uv sync` for this reason; v1.0.2 supersedes it. No code changes since 1.0.1.
+
 ## [1.0.1] — 2026-04-27
 
 ### Fixed

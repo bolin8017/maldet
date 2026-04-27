@@ -16,8 +16,6 @@ jobs:
         with:
           fetch-depth: 0  # needed for hatch-vcs if we add it later; harmless now
       - uses: astral-sh/setup-uv@v3
-        with:
-          version: "0.4.*"
       - name: Set up Python
         run: uv python install 3.12
       - name: Install
