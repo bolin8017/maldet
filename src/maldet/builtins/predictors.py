@@ -54,8 +54,7 @@ class BatchPredictor:
             raise RuntimeError("BatchPredictor: no samples yielded from reader")
         if total > 0 and skipped / total > 0.5:
             raise RuntimeError(
-                f"BatchPredictor: too many samples skipped by feature extractor "
-                f"({skipped}/{total})"
+                f"BatchPredictor: too many samples skipped by feature extractor ({skipped}/{total})"
             )
         feat_matrix = np.stack(mats)
 

@@ -125,7 +125,7 @@ def test_introspect_rejects_unset_extra(tmp_path: Path, monkeypatch: pytest.Monk
     pkg.mkdir()
     (pkg / "__init__.py").write_text("")
     (pkg / "c.py").write_text(
-        "from pydantic import BaseModel\n" "class DefaultConfig(BaseModel):\n" "    x: int = 1\n"
+        "from pydantic import BaseModel\nclass DefaultConfig(BaseModel):\n    x: int = 1\n"
     )
     monkeypatch.syspath_prepend(str(tmp_path))
 

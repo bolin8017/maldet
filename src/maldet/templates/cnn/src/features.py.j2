@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-from elftools.elf.elffile import ELFFile
 
 from maldet.types import Sample
 
@@ -17,6 +16,10 @@ class Text256Extractor:
         self.pad_value = pad_value
 
     def extract(self, sample: Sample) -> np.ndarray:
+        # Lazy import: keep elftools out of module-top imports so the class is
+        # importable in environments without pyelftools (e.g. CI strict-lint).
+        from elftools.elf.elffile import ELFFile
+
         with open(sample.path, "rb") as f:
             try:
                 elf = ELFFile(f)
