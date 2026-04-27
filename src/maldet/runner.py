@@ -101,6 +101,10 @@ class StageRunner:
             trainer = trainer_cls()
             result = trainer.fit(model, reader, extractor, logger=logger)
             trainer.save(result, output_dir / "model")
+            # Upload the model artifact to MLflow under "model/" so downstream
+            # evaluate/predict stages (and the lolday model-fetcher init container)
+            # can fetch ``runs:/<run_id>/model``.
+            logger.log_artifact(output_dir / "model", artifact_path="model")
             return
 
         if stage == "evaluate":
@@ -120,9 +124,11 @@ class StageRunner:
                 class_names=self._manifest.output.classes,
             )
             report = evaluator.evaluate(model, reader, extractor, logger=logger)
-            (output_dir / "metrics.json").write_text(
+            metrics_path = output_dir / "metrics.json"
+            metrics_path.write_text(
                 json.dumps(report.to_json_dict(), indent=2, default=str), encoding="utf-8"
             )
+            logger.log_artifact(metrics_path)
             return
 
         if stage == "predict":
@@ -137,9 +143,9 @@ class StageRunner:
             extractor = extractor_cls()
             predictor_cls = _load_symbol(_require(stage_spec.predictor, "predictor"))
             predictor = predictor_cls(class_names=self._manifest.output.classes)
-            predictor.predict(
-                model, reader, extractor, out_path=output_dir / "predictions.csv", logger=logger
-            )
+            predictions_path = output_dir / "predictions.csv"
+            predictor.predict(model, reader, extractor, out_path=predictions_path, logger=logger)
+            logger.log_artifact(predictions_path)
             return
 
         raise ValueError(f"unhandled stage: {stage}")

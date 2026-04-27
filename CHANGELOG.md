@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-04-27
+
+### Fixed
+
+- `StageRunner` now uploads each stage's primary artifact to MLflow via `logger.log_artifact`: train uploads the model directory under `model/`, evaluate uploads `metrics.json`, predict uploads `predictions.csv`. Previously the runner wrote artifacts to the local output dir but never invoked the MLflow side of the `CompositeEventLogger` for them. Phase 11d E2E exposed this — evaluate/predict's model-fetcher init container failed with "Failed to download artifacts from path 'model'" because the trained model only ever existed on the (ephemeral) train pod's emptyDir.
+
 ## [1.0.5] — 2026-04-27
 
 ### Fixed
