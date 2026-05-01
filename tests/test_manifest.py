@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from maldet.manifest import (
+    CompatConfig,
     DetectorManifest,
     ManifestNotFoundError,
     OutputConfig,
@@ -152,3 +153,13 @@ def test_binary_with_valid_positive_class() -> None:
         score_range=(0.0, 1.0),
     )
     assert cfg.positive_class == "Malware"
+
+
+def test_schema_version_default_is_2() -> None:
+    cfg = CompatConfig()
+    assert cfg.schema_version == 2
+
+
+def test_min_maldet_default_is_2_0() -> None:
+    cfg = CompatConfig()
+    assert cfg.min_maldet == "2.0"

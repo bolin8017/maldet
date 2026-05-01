@@ -91,8 +91,8 @@ class ArtifactsConfig(_Frozen):
 
 class CompatConfig(_Frozen):
     min_python: str = "3.12"
-    min_maldet: str = "1.0"
-    schema_version: int = 1
+    min_maldet: str = "2.0"
+    schema_version: int = 2
 
 
 class StageSpec(_Frozen):
