@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from maldet.manifest import (
     DetectorManifest,
     ManifestNotFoundError,
+    OutputConfig,
     load_manifest,
     search_manifest,
 )
@@ -103,3 +104,51 @@ def test_stage_accepts_config_class_and_params_schema() -> None:
     m = DetectorManifest.model_validate(good)
     assert m.stages["train"].config_class == "elfrfdet.configs:TrainConfig"
     assert m.stages["train"].params_schema == {"type": "object", "properties": {}}
+
+
+def test_positive_class_required_for_binary() -> None:
+    with pytest.raises(ValidationError, match="positive_class is required"):
+        OutputConfig(
+            task="binary_classification",
+            classes=["Benign", "Malware"],
+            score_range=(0.0, 1.0),
+        )
+
+
+def test_positive_class_must_be_in_classes() -> None:
+    with pytest.raises(ValidationError, match="not in output.classes"):
+        OutputConfig(
+            task="binary_classification",
+            classes=["Benign", "Malware"],
+            positive_class="NotARealClass",
+            score_range=(0.0, 1.0),
+        )
+
+
+def test_binary_classification_requires_two_classes() -> None:
+    with pytest.raises(ValidationError, match="exactly 2 classes"):
+        OutputConfig(
+            task="binary_classification",
+            classes=["A", "B", "C"],
+            positive_class="A",
+            score_range=(0.0, 1.0),
+        )
+
+
+def test_positive_class_optional_for_multiclass() -> None:
+    cfg = OutputConfig(
+        task="multiclass_classification",
+        classes=["A", "B", "C"],
+        score_range=(0.0, 1.0),
+    )
+    assert cfg.positive_class is None
+
+
+def test_binary_with_valid_positive_class() -> None:
+    cfg = OutputConfig(
+        task="binary_classification",
+        classes=["Benign", "Malware"],
+        positive_class="Malware",
+        score_range=(0.0, 1.0),
+    )
+    assert cfg.positive_class == "Malware"

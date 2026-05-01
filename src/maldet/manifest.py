@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class _Frozen(BaseModel):
@@ -30,7 +30,24 @@ class InputConfig(_Frozen):
 class OutputConfig(_Frozen):
     task: Literal["binary_classification", "multiclass_classification", "regression", "ranking"]
     classes: list[str] = Field(default_factory=list)
+    positive_class: str | None = None
     score_range: tuple[float, float] = (0.0, 1.0)
+
+    @model_validator(mode="after")
+    def _validate_positive_class(self) -> Self:
+        if self.task == "binary_classification":
+            if self.positive_class is None:
+                raise ValueError("output.positive_class is required for binary_classification")
+            if self.positive_class not in self.classes:
+                raise ValueError(
+                    f"output.positive_class={self.positive_class!r} "
+                    f"not in output.classes={self.classes!r}"
+                )
+            if len(self.classes) != 2:
+                raise ValueError(
+                    f"binary_classification requires exactly 2 classes, " f"got {len(self.classes)}"
+                )
+        return self
 
 
 class ResourcesConfig(_Frozen):
