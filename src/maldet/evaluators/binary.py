@@ -130,4 +130,5 @@ class BinaryClassification:
             labels=[other, self._positive],
             matrix=cm,
         )
+        logger.log_event("per_class", per_class=per_class)
         return report
