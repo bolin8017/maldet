@@ -7,7 +7,7 @@ validation.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -47,6 +47,7 @@ class Trainer(Protocol):
         train: SampleReader,
         extractor: FeatureExtractor,
         *,
+        classes: Sequence[str],
         val: SampleReader | None = None,
         logger: EventLogger,
     ) -> TrainResult: ...
