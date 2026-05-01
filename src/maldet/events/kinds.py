@@ -18,6 +18,7 @@ class EventKind(StrEnum):
     WARNING = "warning"
     ERROR = "error"
     CONFUSION_MATRIX = "confusion_matrix"
+    PER_CLASS = "per_class"
 
 
 ALL_EVENT_KINDS: tuple[str, ...] = tuple(k.value for k in EventKind)
@@ -35,6 +36,7 @@ _REQUIRED_FIELDS: dict[EventKind, tuple[str, ...]] = {
     EventKind.WARNING: ("message",),
     EventKind.ERROR: ("message",),
     EventKind.CONFUSION_MATRIX: ("labels", "matrix"),
+    EventKind.PER_CLASS: ("per_class",),
 }
 
 
