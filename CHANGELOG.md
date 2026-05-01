@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-01
+
 ### Added
 
 - `EventKind.PER_CLASS` (`"per_class"`) — new event kind. `BinaryClassification.evaluate` now emits one immediately after `confusion_matrix`, with payload `{per_class: dict[str, dict[str, float | int]]}`. Each entry maps a class name to `{precision, recall, f1, support}`. The lolday reconciler's `_project_summary_metrics` reads this to populate the `<PerClassMetrics>` card on evaluate-job detail pages (lolday Phase 13b §1.6a).
