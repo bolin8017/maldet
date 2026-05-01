@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +25,22 @@ def _materialize(
     extractor: FeatureExtractor,
     require_labels: bool,
     *,
+    classes: Sequence[str] | None = None,
     logger: EventLogger | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Materialize a reader into (X, y) arrays.
+
+    Labels are encoded as ``classes.index(sample.label)``. ``classes`` is
+    required when ``require_labels=True`` so that internal int labels match
+    the manifest's declared class ordering instead of the historical
+    hardcoded ``1 if "Malware" else 0`` mapping.
+    """
+    if require_labels and not classes:
+        raise ValueError(
+            "SklearnTrainer: classes is required when require_labels=True; "
+            "pass the manifest's output.classes list"
+        )
+    class_to_idx = {c: i for i, c in enumerate(classes or [])}
     xs: list[np.ndarray] = []
     ys: list[int] = []
     total = 0
@@ -49,7 +64,12 @@ def _materialize(
                 raise ValueError(
                     "SklearnTrainer: reader yielded an unlabeled sample during fit/val"
                 )
-            ys.append(1 if sample.label == "Malware" else 0)
+            if sample.label not in class_to_idx:
+                raise ValueError(
+                    f"sample.label={sample.label!r} not in manifest classes="
+                    f"{list(classes or [])!r}"
+                )
+            ys.append(class_to_idx[sample.label])
     if not xs:
         raise RuntimeError("SklearnTrainer: reader yielded zero samples")
     if total > 0 and skipped / total > _SKIP_THRESHOLD:
@@ -71,6 +91,7 @@ class SklearnTrainer:
         train: SampleReader,
         extractor: FeatureExtractor,
         *,
+        classes: Sequence[str],
         val: SampleReader | None = None,
         logger: EventLogger,
     ) -> TrainResult:
@@ -78,7 +99,9 @@ class SklearnTrainer:
         if hasattr(model, "get_params"):
             logger.log_params({k: str(v) for k, v in model.get_params().items()})
 
-        X, y = _materialize(train, extractor, require_labels=True, logger=logger)  # noqa: N806
+        X, y = _materialize(  # noqa: N806
+            train, extractor, require_labels=True, classes=classes, logger=logger
+        )
         logger.log_event("data_loaded", n_train=int(X.shape[0]))
 
         t0 = time.time()
@@ -88,7 +111,7 @@ class SklearnTrainer:
 
         if val is not None:
             Xv, yv = _materialize(  # noqa: N806
-                val, extractor, require_labels=True, logger=logger
+                val, extractor, require_labels=True, classes=classes, logger=logger
             )
             acc = float(accuracy_score(yv, model.predict(Xv)))
             logger.log_metric("val_accuracy", acc)

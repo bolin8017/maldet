@@ -15,6 +15,8 @@ from torch import nn
 from maldet.trainers.lightning_trainer import LightningTrainer, _materialize_tensor
 from maldet.types import Sample
 
+_DEFAULT_CLASSES = ("Malware", "Benign")
+
 
 class DummyReader:
     def __init__(self, items: list[tuple[str, str]]) -> None:
@@ -84,7 +86,13 @@ def test_fit_runs_on_cpu(max_epochs: int, tmp_path: Path, monkeypatch: pytest.Mo
     logger = RecordingLogger()
     trainer = LightningTrainer(max_epochs=max_epochs, default_root_dir=str(tmp_path))
     items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(16)]
-    result = trainer.fit(TinyMLP(), DummyReader(items), DummyExtractor(), logger=logger)
+    result = trainer.fit(
+        TinyMLP(),
+        DummyReader(items),
+        DummyExtractor(),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
     kinds = [e[0] for e in logger.events]
     assert "stage_begin" in kinds
     assert "stage_end" in kinds
@@ -97,7 +105,13 @@ def test_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     logger = RecordingLogger()
     trainer = LightningTrainer(max_epochs=1, default_root_dir=str(tmp_path))
     items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(8)]
-    result = trainer.fit(TinyMLP(), DummyReader(items), DummyExtractor(), logger=logger)
+    result = trainer.fit(
+        TinyMLP(),
+        DummyReader(items),
+        DummyExtractor(),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
     out = tmp_path / "model"
     out.mkdir()
     trainer.save(result, out)
@@ -130,7 +144,9 @@ def test_materialize_tensor_skips_samples_when_extractor_raises_value_error() ->
     items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(20)]
     fail_shas = {items[3][0], items[7][0]}
 
-    x_t, y_t = _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas))
+    x_t, y_t = _materialize_tensor(
+        DummyReader(items), FailingExtractor(fail_shas), classes=list(_DEFAULT_CLASSES)
+    )
 
     assert x_t.shape[0] == 18
     assert y_t.shape[0] == 18
@@ -141,7 +157,9 @@ def test_materialize_tensor_raises_when_more_than_half_samples_fail() -> None:
     fail_shas = {sha for sha, _ in items[:6]}
 
     with pytest.raises(RuntimeError, match="too many"):
-        _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas))
+        _materialize_tensor(
+            DummyReader(items), FailingExtractor(fail_shas), classes=list(_DEFAULT_CLASSES)
+        )
 
 
 def test_materialize_tensor_emits_warning_event_per_skip_when_logger_provided() -> None:
@@ -150,7 +168,12 @@ def test_materialize_tensor_emits_warning_event_per_skip_when_logger_provided() 
     fail_shas = {bad_sha}
     logger = RecordingLogger()
 
-    _materialize_tensor(DummyReader(items), FailingExtractor(fail_shas), logger=logger)
+    _materialize_tensor(
+        DummyReader(items),
+        FailingExtractor(fail_shas),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
 
     warnings_emitted = [e for e in logger.events if e[0] == "warning"]
     assert len(warnings_emitted) == 1
@@ -168,5 +191,11 @@ def test_fit_default_root_dir_is_writable_when_unset(monkeypatch: pytest.MonkeyP
     logger = RecordingLogger()
     trainer = LightningTrainer(max_epochs=1)  # no default_root_dir
     items = [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(8)]
-    result = trainer.fit(TinyMLP(), DummyReader(items), DummyExtractor(), logger=logger)
+    result = trainer.fit(
+        TinyMLP(),
+        DummyReader(items),
+        DummyExtractor(),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
     assert result.model is not None

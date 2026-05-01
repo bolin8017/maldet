@@ -13,6 +13,8 @@ from sklearn.ensemble import RandomForestClassifier
 from maldet.trainers.sklearn_trainer import SklearnTrainer, _materialize
 from maldet.types import Sample
 
+_DEFAULT_CLASSES = ("Malware", "Benign")
+
 
 class DummyReader:
     def __init__(self, items: list[tuple[str, str]]) -> None:
@@ -64,7 +66,13 @@ def test_fit_emits_stage_events() -> None:
     logger = RecordingLogger()
     model = RandomForestClassifier(n_estimators=5, random_state=0)
     trainer = SklearnTrainer()
-    trainer.fit(model, DummyReader(_train_items()), DummyExtractor(), logger=logger)
+    trainer.fit(
+        model,
+        DummyReader(_train_items()),
+        DummyExtractor(),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
     kinds = [e[0] for e in logger.events]
     assert "stage_begin" in kinds
     assert "stage_end" in kinds
@@ -74,7 +82,13 @@ def test_save_writes_joblib(tmp_path: Path) -> None:
     logger = RecordingLogger()
     model = RandomForestClassifier(n_estimators=5, random_state=0)
     trainer = SklearnTrainer()
-    result = trainer.fit(model, DummyReader(_train_items()), DummyExtractor(), logger=logger)
+    result = trainer.fit(
+        model,
+        DummyReader(_train_items()),
+        DummyExtractor(),
+        classes=list(_DEFAULT_CLASSES),
+        logger=logger,
+    )
     out = tmp_path / "model"
     out.mkdir()
     trainer.save(result, out)
@@ -85,13 +99,22 @@ def test_load_roundtrips(tmp_path: Path) -> None:
     logger = RecordingLogger()
     model = RandomForestClassifier(n_estimators=5, random_state=0)
     trainer = SklearnTrainer()
-    result = trainer.fit(model, DummyReader(_train_items()), DummyExtractor(), logger=logger)
+    # classes=["Malware", "Benign"] preserves the historical encoding
+    # (Malware==0, Benign==1) so the existing assert below stays valid.
+    result = trainer.fit(
+        model,
+        DummyReader(_train_items()),
+        DummyExtractor(),
+        classes=["Malware", "Benign"],
+        logger=logger,
+    )
     out = tmp_path / "model"
     out.mkdir()
     trainer.save(result, out)
     loaded = trainer.load(out)
     x = np.array([[1, 1, 1, 1]], dtype=np.uint8)
-    assert loaded.predict(x).tolist() == [1]
+    # all-1 vector is the Malware-extracted feature → should predict class 0 (Malware)
+    assert loaded.predict(x).tolist() == [0]
 
 
 class FailingExtractor:
@@ -118,7 +141,10 @@ def test_materialize_skips_samples_when_extractor_raises_value_error() -> None:
     fail_shas = {items[3][0], items[7][0]}
 
     X, y = _materialize(  # noqa: N806
-        DummyReader(items), FailingExtractor(fail_shas), require_labels=True
+        DummyReader(items),
+        FailingExtractor(fail_shas),
+        require_labels=True,
+        classes=list(_DEFAULT_CLASSES),
     )
 
     assert X.shape[0] == 18
@@ -130,7 +156,12 @@ def test_materialize_raises_when_more_than_half_samples_fail() -> None:
     fail_shas = {sha for sha, _ in items[:6]}  # 60% failure rate
 
     with pytest.raises(RuntimeError, match="too many"):
-        _materialize(DummyReader(items), FailingExtractor(fail_shas), require_labels=True)
+        _materialize(
+            DummyReader(items),
+            FailingExtractor(fail_shas),
+            require_labels=True,
+            classes=list(_DEFAULT_CLASSES),
+        )
 
 
 def test_materialize_emits_warning_event_per_skip_when_logger_provided() -> None:
@@ -143,6 +174,7 @@ def test_materialize_emits_warning_event_per_skip_when_logger_provided() -> None
         DummyReader(items),
         FailingExtractor(fail_shas),
         require_labels=True,
+        classes=list(_DEFAULT_CLASSES),
         logger=logger,
     )
 
@@ -151,3 +183,90 @@ def test_materialize_emits_warning_event_per_skip_when_logger_provided() -> None
     payload = warnings_emitted[0][1]
     assert "message" in payload
     assert bad_sha in payload["message"]
+
+
+# Encoding-via-classes.index tests (Tasks 1.5 + 1.6) ---------------------------
+
+
+class _RecordingModel:
+    """Minimal sklearn-shaped estimator that records the y array passed to fit."""
+
+    def __init__(self) -> None:
+        self.fitted_y: np.ndarray | None = None
+
+    def get_params(self) -> dict[str, Any]:
+        return {"alpha": 0.5}
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> _RecordingModel:  # noqa: N803
+        self.fitted_y = y.copy()
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
+        return np.zeros(len(X), dtype=np.int64)
+
+
+def _samples(*labels: str) -> list[Sample]:
+    return [
+        Sample(sha256=f"{i:064x}", path=Path("/tmp/_x"), label=lbl) for i, lbl in enumerate(labels)
+    ]
+
+
+def test_sklearn_encoding_uses_classes_index_alphabetical() -> None:
+    """classes=['Benign', 'Malware'] → Benign=0, Malware=1."""
+    trainer = SklearnTrainer()
+    model = _RecordingModel()
+    samples = _samples("Benign", "Malware", "Benign", "Malware")
+    trainer.fit(
+        model,
+        DummyReader([(s.sha256, s.label or "") for s in samples]),
+        DummyExtractor(),
+        classes=["Benign", "Malware"],
+        logger=RecordingLogger(),
+    )
+    np.testing.assert_array_equal(model.fitted_y, [0, 1, 0, 1])
+
+
+def test_sklearn_encoding_uses_classes_index_positive_first() -> None:
+    """classes=['Malware', 'Benign'] → Malware=0, Benign=1 (positive-first ordering)."""
+    trainer = SklearnTrainer()
+    model = _RecordingModel()
+    samples = _samples("Benign", "Malware", "Benign", "Malware")
+    trainer.fit(
+        model,
+        DummyReader([(s.sha256, s.label or "") for s in samples]),
+        DummyExtractor(),
+        classes=["Malware", "Benign"],
+        logger=RecordingLogger(),
+    )
+    np.testing.assert_array_equal(model.fitted_y, [1, 0, 1, 0])
+
+
+def test_sklearn_encoding_unknown_label_raises() -> None:
+    trainer = SklearnTrainer()
+    model = _RecordingModel()
+    items = [
+        (f"{0:064x}", "Benign"),
+        (f"{1:064x}", "AlienClass"),
+    ]
+    with pytest.raises(ValueError, match="not in manifest classes"):
+        trainer.fit(
+            model,
+            DummyReader(items),
+            DummyExtractor(),
+            classes=["Benign", "Malware"],
+            logger=RecordingLogger(),
+        )
+
+
+def test_sklearn_fit_requires_classes_kwarg() -> None:
+    """Calling ``trainer.fit(...)`` without ``classes=`` is a TypeError."""
+    trainer = SklearnTrainer()
+    model = _RecordingModel()
+    with pytest.raises(TypeError):
+        # Intentionally omit classes= to verify it's required.
+        trainer.fit(  # type: ignore[call-arg]
+            model,
+            DummyReader(_train_items()),
+            DummyExtractor(),
+            logger=RecordingLogger(),
+        )

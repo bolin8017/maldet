@@ -11,7 +11,7 @@ import os
 import shutil
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -51,8 +51,22 @@ def _materialize_tensor(
     reader: SampleReader,
     extractor: FeatureExtractor,
     *,
+    classes: Sequence[str],
     logger: EventLogger | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Materialize a reader into (x_t, y_t) tensors.
+
+    Labels are encoded as ``classes.index(sample.label)``. ``classes`` is
+    required so that internal int labels match the manifest's declared class
+    ordering instead of the historical hardcoded ``1 if "Malware" else 0``
+    mapping.
+    """
+    if not classes:
+        raise ValueError(
+            "LightningTrainer: classes must be a non-empty sequence; "
+            "pass the manifest's output.classes list"
+        )
+    class_to_idx = {c: i for i, c in enumerate(classes)}
     xs: list[np.ndarray] = []
     ys: list[int] = []
     total = 0
@@ -73,7 +87,11 @@ def _materialize_tensor(
         xs.append(features)
         if sample.label is None:
             raise ValueError("LightningTrainer: unlabeled sample encountered during fit")
-        ys.append(1 if sample.label == "Malware" else 0)
+        if sample.label not in class_to_idx:
+            raise ValueError(
+                f"sample.label={sample.label!r} not in manifest classes={list(classes)!r}"
+            )
+        ys.append(class_to_idx[sample.label])
     if not xs:
         raise RuntimeError("LightningTrainer: reader yielded zero samples")
     if total > 0 and skipped / total > _SKIP_THRESHOLD:
@@ -163,6 +181,7 @@ class LightningTrainer:
         train: SampleReader,
         extractor: FeatureExtractor,
         *,
+        classes: Sequence[str],
         val: SampleReader | None = None,
         logger: EventLogger,
     ) -> TrainResult:
@@ -170,13 +189,17 @@ class LightningTrainer:
         acc, dev = _accelerator_and_devices()
         strategy = _strategy_from_env(dev)
 
-        X, y = _materialize_tensor(train, extractor, logger=logger)  # noqa: N806
+        X, y = _materialize_tensor(  # noqa: N806
+            train, extractor, classes=classes, logger=logger
+        )
         logger.log_event("data_loaded", n_train=int(X.shape[0]))
         train_dl = DataLoader(TensorDataset(X, y), batch_size=self._batch_size, shuffle=True)
 
         val_dl: DataLoader[tuple[torch.Tensor, ...]] | None = None
         if val is not None:
-            Xv, yv = _materialize_tensor(val, extractor, logger=logger)  # noqa: N806
+            Xv, yv = _materialize_tensor(  # noqa: N806
+                val, extractor, classes=classes, logger=logger
+            )
             val_dl = DataLoader(TensorDataset(Xv, yv), batch_size=self._batch_size)
 
         # Default to a writable temp dir (rather than cwd) so the trainer works
