@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from omegaconf import OmegaConf
 
+from maldet.evaluators.binary import BinaryClassification
 from maldet.runner import StageRunner, _model_kwargs
+from maldet.trainers.sklearn_trainer import SklearnTrainer
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -125,3 +127,99 @@ def test_model_kwargs_handles_missing_section() -> None:
     """When cfg has no model section, factory gets called with no kwargs."""
     cfg = OmegaConf.create({"stage": "train"})
     assert _model_kwargs(cfg) == {}
+
+
+def test_train_passes_classes_from_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Runner must pass manifest.output.classes as classes= kwarg to trainer.fit."""
+    monkeypatch.syspath_prepend(str(tmp_path))
+    _write_fake_detector(tmp_path)
+    paths = _write_csvs_and_samples(tmp_path)
+    cfg_path = _write_config(tmp_path, "train", paths)
+
+    manifest = tmp_path / "maldet.toml"
+    manifest.write_text(
+        (FIX / "valid_manifest.toml")
+        .read_text()
+        .replace(
+            'extractor = "maldet.builtins.readers:SampleCsvReader"',
+            'extractor = "fakedet:Extr"',
+        )
+    )
+    monkeypatch.setenv("MALDET_MANIFEST", str(manifest))
+
+    captured: dict = {}
+    real_fit = SklearnTrainer.fit
+
+    def spy_fit(self, model, train, extractor, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return real_fit(self, model, train, extractor, **kwargs)
+
+    monkeypatch.setattr(SklearnTrainer, "fit", spy_fit)
+
+    StageRunner().run(stage="train", config_path=cfg_path)
+
+    # Fixture's manifest declares classes = ["Malware", "Benign"] — runner must
+    # forward it verbatim (NOT silently reorder, NOT derive from positive_class).
+    assert captured["classes"] == ["Malware", "Benign"]
+
+
+def test_evaluate_passes_explicit_positive_class_from_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Runner must pass manifest.output.positive_class to evaluator constructor,
+    not derive from classes[0]. The fixture sets classes=["Malware", "Benign"]
+    with positive_class="Malware" — we deliberately override to positive_class=
+    "Benign" so the runner code paths that incorrectly use classes[0] would
+    leak the wrong value through to the evaluator."""
+    monkeypatch.syspath_prepend(str(tmp_path))
+    _write_fake_detector(tmp_path)
+    paths = _write_csvs_and_samples(tmp_path)
+
+    # First train (positive_class doesn't matter for train).
+    cfg_path = _write_config(tmp_path, "train", paths)
+    manifest = tmp_path / "maldet.toml"
+    # The evaluate stage in the fixture lacks an extractor — runner requires one,
+    # so inject ``extractor = "fakedet:Extr"`` after the [stages.evaluate] header.
+    # Also flip positive_class to "Benign" (≠ classes[0]) so the spied evaluator
+    # call asserts the runner passed the explicit field, not classes[0].
+    manifest_text = (
+        (FIX / "valid_manifest.toml")
+        .read_text()
+        .replace(
+            'extractor = "maldet.builtins.readers:SampleCsvReader"',
+            'extractor = "fakedet:Extr"',
+        )
+        .replace(
+            'positive_class = "Malware"',
+            'positive_class = "Benign"',
+        )
+        .replace(
+            "[stages.evaluate]\n" 'reader = "maldet.builtins.readers:SampleCsvReader"\n',
+            "[stages.evaluate]\n"
+            'reader = "maldet.builtins.readers:SampleCsvReader"\n'
+            'extractor = "fakedet:Extr"\n',
+        )
+    )
+    manifest.write_text(manifest_text)
+    monkeypatch.setenv("MALDET_MANIFEST", str(manifest))
+
+    StageRunner().run(stage="train", config_path=cfg_path)
+
+    # Now spy on BinaryClassification.__init__ and run evaluate.
+    captured: dict = {}
+    real_init = BinaryClassification.__init__
+
+    def spy_init(self, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return real_init(self, **kwargs)
+
+    monkeypatch.setattr(BinaryClassification, "__init__", spy_init)
+
+    eval_cfg_path = _write_config(tmp_path, "evaluate", paths)
+    StageRunner().run(stage="evaluate", config_path=eval_cfg_path)
+
+    # The runner must have forwarded the explicit positive_class field, NOT classes[0].
+    assert captured["positive_class"] == "Benign"
+    assert captured["class_names"] == ["Malware", "Benign"]

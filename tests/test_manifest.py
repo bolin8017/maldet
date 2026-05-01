@@ -90,7 +90,11 @@ def test_stage_accepts_config_class_and_params_schema() -> None:
     good = {
         "detector": {"name": "x", "version": "0.1", "framework": "sklearn"},
         "input": {"binary_format": "elf"},
-        "output": {"task": "binary_classification"},
+        "output": {
+            "task": "binary_classification",
+            "classes": ["Malware", "Benign"],
+            "positive_class": "Malware",
+        },
         "resources": {},
         "lifecycle": {},
         "artifacts": {"model": {"path": "model/", "type": "dir"}},

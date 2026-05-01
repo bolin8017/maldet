@@ -43,6 +43,8 @@ def loose_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
             [output]
             task = "binary_classification"
+            classes = ["Malware", "Benign"]
+            positive_class = "Malware"
 
             [resources]
 
@@ -93,6 +95,8 @@ def strict_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
             [output]
             task = "binary_classification"
+            classes = ["Malware", "Benign"]
+            positive_class = "Malware"
 
             [resources]
 
@@ -143,6 +147,8 @@ def dataclass_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
             [output]
             task = "binary_classification"
+            classes = ["Malware", "Benign"]
+            positive_class = "Malware"
 
             [resources]
 
@@ -220,6 +226,8 @@ def unset_extra_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
             [output]
             task = "binary_classification"
+            classes = ["Malware", "Benign"]
+            positive_class = "Malware"
 
             [resources]
 

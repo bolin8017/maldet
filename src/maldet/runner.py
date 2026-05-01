@@ -120,7 +120,13 @@ class StageRunner:
             model = model_factory(**_model_kwargs(cfg))
             trainer_cls = _load_symbol(_require(stage_spec.trainer, "trainer"))
             trainer = trainer_cls()
-            result = trainer.fit(model, reader, extractor, logger=logger)
+            result = trainer.fit(
+                model,
+                reader,
+                extractor,
+                classes=self._manifest.output.classes,
+                logger=logger,
+            )
             trainer.save(result, output_dir / "model")
             # Upload the model artifact to MLflow under "model/" so downstream
             # evaluate/predict stages (and the lolday model-fetcher init container)
@@ -141,9 +147,12 @@ class StageRunner:
             reader = reader_cls(csv=test_csv, samples_root=samples_root)
             extractor = extractor_cls()
             evaluator_cls = _load_symbol(_require(stage_spec.evaluator, "evaluator"))
-            # Convention: for binary_classification, classes[0] is the positive class.
+            # positive_class is an explicit field on the manifest's OutputConfig
+            # (validated to be in classes for binary_classification). For non-binary
+            # tasks the field is None — the evaluator should not be invoked then,
+            # so we pass through and let the evaluator's own validation (if any) raise.
             evaluator = evaluator_cls(
-                positive_class=self._manifest.output.classes[0],
+                positive_class=self._manifest.output.positive_class,
                 class_names=self._manifest.output.classes,
             )
             report = evaluator.evaluate(model, reader, extractor, logger=logger)
