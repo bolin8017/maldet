@@ -45,7 +45,7 @@ class OutputConfig(_Frozen):
                 )
             if len(self.classes) != 2:
                 raise ValueError(
-                    f"binary_classification requires exactly 2 classes, " f"got {len(self.classes)}"
+                    f"binary_classification requires exactly 2 classes, got {len(self.classes)}"
                 )
         return self
 

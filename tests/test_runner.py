@@ -196,7 +196,7 @@ def test_evaluate_passes_explicit_positive_class_from_manifest(
             'positive_class = "Benign"',
         )
         .replace(
-            "[stages.evaluate]\n" 'reader = "maldet.builtins.readers:SampleCsvReader"\n',
+            '[stages.evaluate]\nreader = "maldet.builtins.readers:SampleCsvReader"\n',
             "[stages.evaluate]\n"
             'reader = "maldet.builtins.readers:SampleCsvReader"\n'
             'extractor = "fakedet:Extr"\n',

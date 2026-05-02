@@ -75,8 +75,7 @@ class BinaryClassification:
                 continue
             if sample.label not in class_to_idx:
                 raise ValueError(
-                    f"sample.label={sample.label!r} not in manifest classes="
-                    f"{list(self._classes)!r}"
+                    f"sample.label={sample.label!r} not in manifest classes={list(self._classes)!r}"
                 )
             shas.append(sample.sha256)
             ys.append(class_to_idx[sample.label])

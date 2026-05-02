@@ -66,8 +66,7 @@ def _materialize(
                 )
             if sample.label not in class_to_idx:
                 raise ValueError(
-                    f"sample.label={sample.label!r} not in manifest classes="
-                    f"{list(classes or [])!r}"
+                    f"sample.label={sample.label!r} not in manifest classes={list(classes or [])!r}"
                 )
             ys.append(class_to_idx[sample.label])
     if not xs:
