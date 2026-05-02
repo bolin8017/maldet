@@ -120,12 +120,12 @@ def test_metrics_correct_when_positive_class_is_index_zero() -> None:
         def extract(self, s: Sample) -> np.ndarray:
             # Each sample's feature is its label-as-index under
             # classes=["Malware","Benign"]: Malware=0, Benign=1. The model predicts
-            # ``int(round(x[0]))`` so trainer/evaluator round-trip is perfect.
+            # ``round(x[0])`` returns int; trainer/evaluator round-trip is perfect.
             return np.array([0.0 if s.label == "Malware" else 1.0], dtype=np.float32)
 
     class _PerfectModel:
         def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
-            return np.asarray([int(round(x[0])) for x in X], dtype=np.int64)
+            return np.asarray([round(x[0]) for x in X], dtype=np.int64)
 
     samples = [
         Sample(
@@ -172,7 +172,7 @@ def test_metrics_correct_when_positive_class_is_index_one() -> None:
 
     class _PerfectModel:
         def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
-            return np.asarray([int(round(x[0])) for x in X], dtype=np.int64)
+            return np.asarray([round(x[0]) for x in X], dtype=np.int64)
 
     samples = [
         Sample(

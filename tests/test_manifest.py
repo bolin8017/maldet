@@ -121,7 +121,7 @@ def test_positive_class_required_for_binary() -> None:
 
 
 def test_positive_class_must_be_in_classes() -> None:
-    with pytest.raises(ValidationError, match="not in output.classes"):
+    with pytest.raises(ValidationError, match=r"not in output\.classes"):
         OutputConfig(
             task="binary_classification",
             classes=["Benign", "Malware"],

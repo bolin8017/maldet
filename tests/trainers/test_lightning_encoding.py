@@ -20,8 +20,8 @@ import pytest
 # in isolation without it.
 pytest.importorskip("lightning.pytorch")
 
-from maldet.trainers.lightning_trainer import _materialize_tensor  # noqa: E402
-from maldet.types import Sample  # noqa: E402
+from maldet.trainers.lightning_trainer import _materialize_tensor
+from maldet.types import Sample
 
 
 class _Reader:
