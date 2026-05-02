@@ -47,7 +47,7 @@ def _samples() -> list[Sample]:
 def test_evaluate_emits_confusion_matrix(tmp_path: Path) -> None:
     log_path = tmp_path / "events.jsonl"
     logger = JsonlEventLogger(log_path)
-    evaluator = BinaryClassification(positive_class="Malware", class_names=["Malware", "Benign"])
+    evaluator = BinaryClassification(positive_class="Malware", class_names=["Benign", "Malware"])
 
     evaluator.evaluate(
         model=_PerfectModel(),
@@ -62,7 +62,9 @@ def test_evaluate_emits_confusion_matrix(tmp_path: Path) -> None:
     ]
     assert len(cm_records) == 1
     cm = cm_records[0]
-    # Row order matches sklearn labels=[0, 1] = [other, positive] = ["Benign", "Malware"].
+    # Row order mirrors the constructor's class_names verbatim under
+    # ``classes.index`` encoding (no more [other, positive] swap):
+    # Benign at index 0, Malware at index 1.
     assert cm["labels"] == ["Benign", "Malware"]
     # 1 Benign predicted Benign (TN), 0 Benign predicted Malware (FP),
     # 0 Malware predicted Benign (FN), 2 Malware predicted Malware (TP).

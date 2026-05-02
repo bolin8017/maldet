@@ -47,7 +47,7 @@ def _samples() -> list[Sample]:
 def test_evaluate_emits_per_class(tmp_path: Path) -> None:
     log_path = tmp_path / "events.jsonl"
     logger = JsonlEventLogger(log_path)
-    evaluator = BinaryClassification(positive_class="Malware", class_names=["Malware", "Benign"])
+    evaluator = BinaryClassification(positive_class="Malware", class_names=["Benign", "Malware"])
 
     evaluator.evaluate(
         model=_PerfectModel(),
