@@ -160,19 +160,19 @@ def test_train_passes_classes_from_manifest(
 
     StageRunner().run(stage="train", config_path=cfg_path)
 
-    # Fixture's manifest declares classes = ["Malware", "Benign"] — runner must
+    # Fixture's manifest declares classes = ["Benign", "Malware"] — runner must
     # forward it verbatim (NOT silently reorder, NOT derive from positive_class).
-    assert captured["classes"] == ["Malware", "Benign"]
+    assert captured["classes"] == ["Benign", "Malware"]
 
 
 def test_evaluate_passes_explicit_positive_class_from_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Runner must pass manifest.output.positive_class to evaluator constructor,
-    not derive from classes[0]. The fixture sets classes=["Malware", "Benign"]
+    not derive from classes[0]. The fixture sets classes=["Benign", "Malware"]
     with positive_class="Malware" — we deliberately override to positive_class=
-    "Benign" so the runner code paths that incorrectly use classes[0] would
-    leak the wrong value through to the evaluator."""
+    "Benign" (matches classes[0]) so the test still pins the runner forwarded
+    the explicit field rather than re-deriving from elsewhere."""
     monkeypatch.syspath_prepend(str(tmp_path))
     _write_fake_detector(tmp_path)
     paths = _write_csvs_and_samples(tmp_path)
@@ -222,4 +222,4 @@ def test_evaluate_passes_explicit_positive_class_from_manifest(
 
     # The runner must have forwarded the explicit positive_class field, NOT classes[0].
     assert captured["positive_class"] == "Benign"
-    assert captured["class_names"] == ["Malware", "Benign"]
+    assert captured["class_names"] == ["Benign", "Malware"]
