@@ -5,6 +5,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-05-02
+
+### BREAKING
+
+- `OutputConfig.positive_class` is now **required** for `binary_classification` task. Manifests must declare which class is the positive (i.e. the one we report metrics for). Pydantic rejects manifests missing the field.
+- `OutputConfig.classes` for `binary_classification` must contain exactly two entries; Pydantic rejects otherwise.
+- `Trainer.fit` protocol gains a required `classes: Sequence[str]` keyword arg. Custom trainer subclasses must update their signatures.
+- `SklearnTrainer` and `LightningTrainer` no longer hardcode `Malware → 1`. Encoding is `classes.index(sample.label)`. **Models trained with maldet 1.x produce inverted predictions under maldet 2.0** unless their manifest happened to use `classes=["Benign","Malware"]` (alphabetical sklearn convention). All models should be retrained.
+- `BinaryClassification` evaluator now encodes labels via `classes.index()` and threads `pos_label` through sklearn metrics. The output `confusion_matrix.labels` mirrors the constructor's `class_names` order verbatim (no more `[other, positive]` reversal). Downstream consumers reading the field should not care, but if they sorted on the fly they may need to drop that.
+- `CompatConfig.schema_version` default bumps to `2`; `CompatConfig.min_maldet` to `"2.0"`. The validator does NOT yet reject older `schema_version` values, but downstream tooling (lolday's build-helper validator) will.
+- `StageRunner` consumes `manifest.output.positive_class` directly instead of falling back to `classes[0]`. The "convention: classes[0] is the positive class" comment in `runner.py` is removed.
+
+### Added
+
+- `OutputConfig.positive_class: str | None` — explicit field with `@model_validator(mode="after")` that enforces presence + membership for binary tasks.
+- `EventKind.CONFUSION_MATRIX` and `EventKind.PER_CLASS` were already added in 1.1.0/1.2.0; the 2.0 evaluator continues to emit them.
+
+### Fixed
+
+- Encoding inconsistency between trainer (`classes.index`) and evaluator (legacy `1 if ==positive else 0`) that silently inverted metrics on perfect classifiers when `classes=["Malware","Benign"]` (positive at index 0). Regression test `tests/evaluators/test_binary.py::test_metrics_correct_when_positive_class_is_index_zero` would fail without the fix.
+
+### Migration
+
+```toml
+# Add to maldet.toml under [output]
+positive_class = "Malware"     # the class you care about (sklearn pos_label)
+
+# Bump compat
+[compat]
+schema_version = 2
+min_maldet = "2.0"
+```
+
+Detector authors should also flip `classes` to alphabetical (e.g. `["Benign", "Malware"]`) to align with sklearn's `LabelEncoder.classes_` and `pos_label=1` defaults. The 2.0 evaluator no longer requires this — it will produce correct metrics for any class ordering — but alphabetical is the convention.
+
+Models trained with maldet 1.x must be retrained to align with the new `classes.index` encoding.
+
 ## [1.2.0] — 2026-05-01
 
 ### Added
