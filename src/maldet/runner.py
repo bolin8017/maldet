@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import inspect
 import json
+import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +93,10 @@ class StageRunner:
         cfg = OmegaConf.load(config_path)
         assert isinstance(cfg, DictConfig)
 
+        with self._pinned_mlflow_run(cfg):
+            self._run_stage(stage, stage_spec, cfg)
+
+    def _run_stage(self, stage: str, stage_spec: Any, cfg: DictConfig) -> None:
         output_dir = Path(str(cfg.paths.output_dir))
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -183,3 +190,59 @@ class StageRunner:
             return
 
         raise ValueError(f"unhandled stage: {stage}")
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _pinned_mlflow_run(cfg: DictConfig) -> Iterator[None]:
+        """Pin the active MLflow run to the platform-injected ``cfg.mlflow.run_id``.
+
+        Lolday creates the MLflow run before the stage container starts and
+        writes ``(tracking_uri, run_id, experiment_id)`` into ``cfg.mlflow``.
+        Without an explicit pin, top-level ``mlflow.*`` calls — including those
+        emitted from PyTorch Lightning DDP subprocess workers and the model
+        artifact upload at stage end — race and auto-create a fresh untagged
+        run instead of resuming the platform's. We've observed this leak as a
+        second "learned-stag-591"-style auto-named run appearing alongside the
+        platform's tagged run for every multi-GPU train.
+
+        Behaviour:
+
+        - If ``cfg.mlflow`` is absent (offline / dev YAML), no-op.
+        - If ``mlflow`` is not importable (``maldet`` installed without the
+          ``mlflow`` extra), no-op.
+        - Otherwise: set tracking URI + experiment + run via both the SDK and
+          ``MLFLOW_*`` env vars. The env vars cover DDP subprocess workers
+          spawned by Lightning, which inherit the parent's environment.
+        """
+        if cfg is None:
+            yield
+            return
+        mlflow_cfg = cfg.get("mlflow") if isinstance(cfg, DictConfig) else None
+        if mlflow_cfg is None:
+            yield
+            return
+        try:
+            import mlflow
+        except ImportError:
+            yield
+            return
+        tracking_uri = mlflow_cfg.get("tracking_uri")
+        experiment_id = mlflow_cfg.get("experiment_id")
+        run_id = mlflow_cfg.get("run_id")
+        if tracking_uri:
+            tracking_uri = str(tracking_uri)
+            mlflow.set_tracking_uri(tracking_uri)
+            os.environ["MLFLOW_TRACKING_URI"] = tracking_uri
+        if experiment_id:
+            os.environ["MLFLOW_EXPERIMENT_ID"] = str(experiment_id)
+        if not run_id:
+            yield
+            return
+        run_id = str(run_id)
+        os.environ["MLFLOW_RUN_ID"] = run_id
+        mlflow.start_run(run_id=run_id)
+        try:
+            yield
+        finally:
+            if mlflow.active_run() is not None:
+                mlflow.end_run()
