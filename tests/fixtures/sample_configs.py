@@ -21,7 +21,6 @@ class TrainConfig(BaseModel):
 
 class EvaluateConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    threshold: float = 0.5
 
 
 class PredictConfig(BaseModel):

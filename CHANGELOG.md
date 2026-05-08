@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-05-08
+
+### Removed
+
+- `threshold` field from binary-classification scaffolding templates (`templates/rf/src/configs.py.j2`, `templates/cnn/src/configs.py.j2`) and from the `tests/fixtures/sample_configs.py` fixture. Scaffolds generated from these templates no longer carry the field. Existing detector repos that scaffolded earlier should remove `EvaluateConfig.threshold` themselves on their next version bump (see lolday spec `2026-05-08-submit-job-priority-hparams-threshold-design.md` §6 for rationale).
+
+### Notes
+
+- `BinaryClassification.evaluate()` is unchanged; it has always called `model.predict()` (default 0.5 argmax) and ignored any `threshold` field declared in stage configs. The removal eliminates a leaky-abstraction footgun where users could believe they were tuning the operating point when they were not.
+
 ## [2.0.0] — 2026-05-02
 
 ### BREAKING
