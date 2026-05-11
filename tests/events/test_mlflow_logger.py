@@ -44,7 +44,8 @@ def test_log_event_is_a_mlflow_tag() -> None:
     mlflow = MagicMock()
     logger = MlflowEventLogger(mlflow=mlflow)
     logger.log_event("stage_begin", stage="train", config_hash="abc")
-    mlflow.set_tag.assert_any_call("maldet.stage_begin.stage", "train")
+    # 2.2.0 kind-aware routing: stage_begin sets maldet.stage + maldet.stage_begin_ts.
+    mlflow.set_tag.assert_any_call("maldet.stage", "train")
 
 
 def test_set_tags_calls_mlflow() -> None:

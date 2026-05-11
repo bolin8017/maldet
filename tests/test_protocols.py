@@ -46,6 +46,16 @@ class DummyLogger:
     def log_artifact(self, path: Path, artifact_path: str | None = None) -> None: ...
     def log_event(self, kind: str, **payload: Any) -> None: ...
     def set_tags(self, tags: dict[str, str]) -> None: ...
+    def log_model(
+        self,
+        model: Any,
+        flavor: str,
+        artifact_path: str = "model",
+        signature: Any = None,
+        input_example: Any = None,
+        pip_requirements: list[str] | None = None,
+    ) -> None: ...
+    def close(self) -> None: ...
 
 
 class GoodTrainer:

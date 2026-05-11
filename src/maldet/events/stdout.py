@@ -40,3 +40,20 @@ class StdoutEventLogger:
 
     def set_tags(self, tags: dict[str, str]) -> None:
         self._write({"kind": "tags", "tags": dict(tags)})
+
+    def log_model(
+        self,
+        model: Any,
+        flavor: str,
+        artifact_path: str = "model",
+        signature: Any = None,
+        input_example: Any = None,
+        pip_requirements: list[str] | None = None,
+    ) -> None:
+        print(
+            f"[maldet] model_logged flavor={flavor} "
+            f"artifact_path={artifact_path} class={type(model).__name__}"
+        )
+
+    def close(self) -> None:
+        return None
