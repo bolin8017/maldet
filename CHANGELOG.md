@@ -5,6 +5,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-05-11
+
+### BREAKING
+
+- `EventLogger` protocol gains `log_model(model, flavor, ...)` and `close()` methods. Custom logger implementations must add both (no-ops are acceptable for non-MLflow sinks).
+- `Trainer.save()` signature gains required `logger: EventLogger` kwarg and optional `signature_input_sample`. Custom Trainer subclasses must update.
+- `SklearnTrainer.save()` no longer writes `model.joblib` — output is MLflow Models layout (`MLmodel` YAML + `python_env.yaml` + `model.pkl` etc). Consumers calling `joblib.load(out_dir / "model.joblib")` must switch to `mlflow.sklearn.load_model(out_dir)` or use `SklearnTrainer.load`.
+- `LightningTrainer.save()` no longer writes `model.ckpt` — output is MLflow Models layout. `LightningTrainer.load()` no longer requires `model_factory`; the kwarg is accepted for compatibility but ignored.
+- `MlflowEventLogger.log_event()` no longer stringifies all event payloads as `maldet.{kind}.{k}` tags. Structured payloads (`confusion_matrix`, `per_class`) are written via `mlflow.log_dict()` as JSON artifacts. `warning`/`error` payloads are buffered and flushed as `warnings.jsonl`/`errors.jsonl` artifacts on `close()` (no more tag-overwrite data loss). `stage_begin`/`stage_end` tag namespace flattens: `maldet.stage`, `maldet.stage_end`, `maldet.status`. Downstream consumers parsing the old stringified tags must switch to reading the artifacts.
+
+### Added
+
+- MLflow Models flavor integration in trainers — generated `MLmodel` + `python_env.yaml` + optional `signature` + `input_example` enables Model Registry signature surfacing, `mlflow models serve`, and `mlflow.evaluate()`.
+- `mlflow.log_input(mlflow.data.from_pandas(...))` per stage in `StageRunner` for dataset lineage. Backend platforms can inject `cfg.lolday.{train,test,predict}_dataset_id` to thread a stable platform-side ID.
+- `MlflowEventLogger.close()` lifecycle hook — runner calls in `finally` to flush buffered events.
+
+### Migration
+
+```python
+# Trainer.save callers:
+- trainer.save(result, out_dir)
++ trainer.save(result, out_dir, logger=logger)
+
+# Sklearn detector evaluate/predict load:
+- model = joblib.load(out_dir / "model.joblib")
++ model = trainer.load(out_dir)  # uses mlflow.sklearn.load_model
+
+# Lightning detector evaluate/predict load:
+- model = trainer.load(out_dir, model_factory=ByteCNN)  # required
++ model = trainer.load(out_dir)  # factory no longer needed
+```
+
+Lolday platform: when creating an MLflow run, inject `cfg.lolday.train_dataset_id` / `test_dataset_id` / `predict_dataset_id` via the rendered Hydra config so `StageRunner._log_dataset_input` can name datasets stably.
+
+Detector authors: bump `compat.min_maldet` to `"2.2"` in `maldet.toml`. No detector-side code changes are required for the new MLflow rendering — it happens entirely inside maldet.
+
 ## [2.1.0] — 2026-05-08
 
 ### Removed

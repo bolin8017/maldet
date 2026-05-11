@@ -120,7 +120,13 @@ def _log_dataset_input(cfg: DictConfig | None, stage: str, csv_path: Path) -> No
     ds_id = lolday_meta.get(key_map.get(stage, ""), "unknown")
     digest = hashlib.sha256(df.to_csv(index=False).encode()).hexdigest()[:16]
     try:
-        ds = mlflow.data.from_pandas(
+        # mlflow.data.from_pandas is the canonical mlflow >= 2.4 entry; the
+        # mlflow type stubs don't surface it on the package, so resolve at
+        # runtime via getattr to bypass mypy attr-defined.
+        from_pandas = getattr(mlflow.data, "from_pandas", None)
+        if from_pandas is None:
+            return
+        ds = from_pandas(
             df=df,
             source=str(csv_path),
             name=f"{stage}_{ds_id}",
