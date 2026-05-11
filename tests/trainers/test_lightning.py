@@ -79,6 +79,12 @@ class RecordingLogger:
     def set_tags(self, tags: dict[str, str]) -> None:
         self.events.append(("tags", dict(tags)))
 
+    def log_model(self, **kwargs: Any) -> None:
+        self.events.append(("model", kwargs))
+
+    def close(self) -> None:
+        pass
+
 
 @pytest.mark.parametrize("max_epochs", [1])
 def test_fit_runs_on_cpu(max_epochs: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,10 +119,11 @@ def test_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         logger=logger,
     )
     out = tmp_path / "model"
-    out.mkdir()
-    trainer.save(result, out)
-    fresh = TinyMLP()
-    loaded = trainer.load(out, model_factory=lambda: fresh)
+    # mlflow.pytorch.save_model owns out_dir creation; do not pre-mkdir.
+    trainer.save(result, out, logger=logger)
+    # 2.2.0: factory no longer required at load — mlflow.pytorch.load_model
+    # pickles the model class so reconstruction is automatic.
+    loaded = trainer.load(out)
     x = torch.tensor([[1.0, 1.0, 1.0, 1.0]])
     assert loaded(x).shape == (1, 2)
 

@@ -61,7 +61,14 @@ class Trainer(Protocol):
         val: SampleReader | None = None,
         logger: EventLogger,
     ) -> TrainResult: ...
-    def save(self, result: TrainResult, out_dir: Path) -> None: ...
+    def save(
+        self,
+        result: TrainResult,
+        out_dir: Path,
+        *,
+        logger: EventLogger,
+        signature_input_sample: Any | None = None,
+    ) -> None: ...
     def load(self, model_dir: Path) -> Any: ...
 
 

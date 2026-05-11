@@ -71,7 +71,14 @@ class GoodTrainer:
     ) -> TrainResult:
         return TrainResult(model=model)
 
-    def save(self, result: TrainResult, out_dir: Path) -> None: ...
+    def save(
+        self,
+        result: TrainResult,
+        out_dir: Path,
+        *,
+        logger: EventLogger,
+        signature_input_sample: Any | None = None,
+    ) -> None: ...
     def load(self, model_dir: Path) -> Any:
         return object()
 
