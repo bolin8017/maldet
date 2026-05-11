@@ -91,8 +91,10 @@ def test_runner_train_sklearn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     runner = StageRunner()
     runner.run(stage="train", config_path=cfg_path)
 
-    out_model = Path(paths["output_dir"]) / "model" / "model.joblib"
-    assert out_model.exists()
+    # 2.2.0: MLflow Models layout — MLmodel YAML + python_env.yaml + .pkl
+    # (was raw model.joblib in 2.1.x).
+    out_dir = Path(paths["output_dir"]) / "model"
+    assert (out_dir / "MLmodel").exists()
 
     events_file = Path(paths["output_dir"]) / "events.jsonl"
     assert events_file.exists()

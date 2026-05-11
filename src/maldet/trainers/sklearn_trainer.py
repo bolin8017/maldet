@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
+import shutil
 import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from sklearn.metrics import accuracy_score
 
 from maldet.protocols import EventLogger, FeatureExtractor, SampleReader
 from maldet.types import TrainResult
-
-_MODEL_FILENAME = "model.joblib"
-
 
 _SKIP_THRESHOLD = 0.5
 
@@ -118,9 +115,46 @@ class SklearnTrainer:
         logger.log_event("stage_end", stage="train", status="success")
         return TrainResult(model=model, extras={"train_time_seconds": duration})
 
-    def save(self, result: TrainResult, out_dir: Path) -> None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        joblib.dump(result.model, out_dir / _MODEL_FILENAME)
+    def save(
+        self,
+        result: TrainResult,
+        out_dir: Path,
+        *,
+        logger: EventLogger,
+        signature_input_sample: np.ndarray | None = None,
+    ) -> None:
+        """Write MLflow Models layout to ``out_dir`` and log it to the active MLflow run.
+
+        The MLflow Models layout (MLmodel YAML + python_env.yaml + signature)
+        lets evaluate/predict containers load via ``mlflow.sklearn.load_model``
+        and lets the MLflow Model Registry pick up the dependencies + schema
+        without manual MLmodel authoring.
+        """
+        import mlflow.sklearn
+        from mlflow.models import infer_signature
+
+        # mlflow.sklearn.save_model creates out_dir; remove any pre-existing
+        # contents so save_model's mkdir does not raise on partial state.
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+
+        signature = None
+        input_example = None
+        if signature_input_sample is not None and len(signature_input_sample) > 0:
+            sample_X = signature_input_sample[:5]  # noqa: N806
+            sample_y = result.model.predict(sample_X)
+            signature = infer_signature(sample_X, sample_y)
+            input_example = sample_X
+
+        mlflow.sklearn.save_model(
+            sk_model=result.model,
+            path=str(out_dir),
+            signature=signature,
+            input_example=input_example,
+        )
+        logger.log_artifact(out_dir, artifact_path="model")
 
     def load(self, model_dir: Path) -> Any:
-        return joblib.load(model_dir / _MODEL_FILENAME)
+        import mlflow.sklearn
+
+        return mlflow.sklearn.load_model(str(model_dir))

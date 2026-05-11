@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib
 import inspect
 import json
+import logging
 import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from maldet.events.jsonl import JsonlEventLogger
@@ -18,6 +21,8 @@ from maldet.events.logger import CompositeEventLogger
 from maldet.events.mlflow_logger import MlflowEventLogger
 from maldet.events.stdout import StdoutEventLogger
 from maldet.manifest import DetectorManifest, load_manifest, search_manifest
+
+_log = logging.getLogger(__name__)
 
 # Hydra meta-fields that callers (esp. lolday's params guard) reject as RCE
 # vectors — drop them silently from cfg.model kwargs so legacy YAML configs that
@@ -75,6 +80,91 @@ def _load_with_optional_factory(trainer: Any, source_model: Path, factory: Any) 
     return trainer.load(source_model)
 
 
+def _log_dataset_input(cfg: DictConfig | None, stage: str, csv_path: Path) -> None:
+    """Emit ``mlflow.log_input`` for the dataset consumed by ``stage``.
+
+    No-ops when mlflow isn't importable, there is no active run, or the CSV
+    can't be loaded. ``cfg.lolday.{train,test,predict}_dataset_id`` may provide
+    a stable platform-side ID; falls back to ``"unknown"`` otherwise.
+    """
+    try:
+        import mlflow
+        import mlflow.data
+        import pandas as pd
+    except ImportError:
+        return
+    if mlflow.active_run() is None:
+        return
+    if not csv_path.exists():
+        return
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as exc:
+        _log.warning("dataset_input read failed: %s", exc)
+        return
+
+    lolday_meta: dict[str, Any] = {}
+    if cfg is not None and hasattr(cfg, "get"):
+        raw = cfg.get("lolday")
+        if raw is not None:
+            try:
+                lolday_meta = dict(raw) if not isinstance(raw, dict) else raw
+            except Exception:
+                lolday_meta = {}
+
+    key_map = {
+        "train": "train_dataset_id",
+        "evaluate": "test_dataset_id",
+        "predict": "predict_dataset_id",
+    }
+    ds_id = lolday_meta.get(key_map.get(stage, ""), "unknown")
+    digest = hashlib.sha256(df.to_csv(index=False).encode()).hexdigest()[:16]
+    try:
+        # mlflow.data.from_pandas is the canonical mlflow >= 2.4 entry; the
+        # mlflow type stubs don't surface it on the package, so resolve at
+        # runtime via getattr to bypass mypy attr-defined.
+        from_pandas = getattr(mlflow.data, "from_pandas", None)
+        if from_pandas is None:
+            return
+        ds = from_pandas(
+            df=df,
+            source=str(csv_path),
+            name=f"{stage}_{ds_id}",
+            digest=digest,
+        )
+        context_map = {
+            "train": "training",
+            "evaluate": "evaluation",
+            "predict": "prediction",
+        }
+        mlflow.log_input(ds, context=context_map.get(stage, stage))
+    except Exception as exc:
+        # log_input is best-effort lineage; don't bring down the stage if it fails.
+        _log.warning("mlflow.log_input failed: %s", exc)
+
+
+def _first_sample_features(reader: Any, extractor: Any, *, n: int = 5) -> np.ndarray | None:
+    """Pull the first ``n`` successfully-extracted feature vectors as a 2-D array.
+
+    Used by the train branch of ``_run_stage`` to build an ``input_example``
+    for MLflow Models signature inference. Re-iterating the reader after
+    ``trainer.fit`` consumed it is acceptable: readers in maldet are designed
+    to be replayed (file-backed iterators), and only a handful of samples are
+    needed.
+    """
+    out: list[np.ndarray] = []
+    for sample in reader:
+        try:
+            out.append(extractor.extract(sample))
+        except Exception:
+            continue
+        if len(out) >= n:
+            break
+    if not out:
+        return None
+    return np.stack(out)
+
+
 class StageRunner:
     """Orchestrates a single stage (train / evaluate / predict)."""
 
@@ -113,12 +203,28 @@ class StageRunner:
                 MlflowEventLogger(),
             ]
         )
+        try:
+            self._dispatch_stage(stage, stage_spec, cfg, logger, output_dir)
+        finally:
+            # Flush buffered events (warnings.jsonl / errors.jsonl) before the
+            # pinned mlflow run is ended by _pinned_mlflow_run.
+            with contextlib.suppress(Exception):
+                logger.close()
 
+    def _dispatch_stage(
+        self,
+        stage: str,
+        stage_spec: Any,
+        cfg: DictConfig,
+        logger: CompositeEventLogger,
+        output_dir: Path,
+    ) -> None:
         reader_cls = _load_symbol(_require(stage_spec.reader, "reader"))
         extractor_cls = _load_symbol(_require(stage_spec.extractor, "extractor"))
 
         if stage == "train":
             train_csv = Path(str(cfg.data.train_csv))
+            _log_dataset_input(cfg, "train", train_csv)
             samples_root = Path(str(cfg.paths.samples_root))
             reader = reader_cls(csv=train_csv, samples_root=samples_root)
             extractor = extractor_cls()
@@ -134,11 +240,17 @@ class StageRunner:
                 classes=self._manifest.output.classes,
                 logger=logger,
             )
-            trainer.save(result, output_dir / "model")
-            # Upload the model artifact to MLflow under "model/" so downstream
-            # evaluate/predict stages (and the lolday model-fetcher init container)
-            # can fetch ``runs:/<run_id>/model``.
-            logger.log_artifact(output_dir / "model", artifact_path="model")
+            # Re-iterate the reader for a tiny signature sample. Readers in
+            # maldet are file-backed and replayable, so this is cheap and
+            # avoids leaking sample arrays out of trainer.fit's contract.
+            sig_reader = reader_cls(csv=train_csv, samples_root=samples_root)
+            sig_sample = _first_sample_features(sig_reader, extractor, n=5)
+            trainer.save(
+                result,
+                output_dir / "model",
+                logger=logger,
+                signature_input_sample=sig_sample,
+            )
             return
 
         if stage == "evaluate":
@@ -150,14 +262,11 @@ class StageRunner:
             factory = _load_symbol(model_symbol) if model_symbol else None
             model = _load_with_optional_factory(trainer, source_model, factory)
             test_csv = Path(str(cfg.data.test_csv))
+            _log_dataset_input(cfg, "evaluate", test_csv)
             samples_root = Path(str(cfg.paths.samples_root))
             reader = reader_cls(csv=test_csv, samples_root=samples_root)
             extractor = extractor_cls()
             evaluator_cls = _load_symbol(_require(stage_spec.evaluator, "evaluator"))
-            # positive_class is an explicit field on the manifest's OutputConfig
-            # (validated to be in classes for binary_classification). For non-binary
-            # tasks the field is None — the evaluator should not be invoked then,
-            # so we pass through and let the evaluator's own validation (if any) raise.
             evaluator = evaluator_cls(
                 positive_class=self._manifest.output.positive_class,
                 class_names=self._manifest.output.classes,
@@ -179,6 +288,7 @@ class StageRunner:
             factory = _load_symbol(model_symbol) if model_symbol else None
             model = _load_with_optional_factory(trainer, source_model, factory)
             predict_csv = Path(str(cfg.data.predict_csv))
+            _log_dataset_input(cfg, "predict", predict_csv)
             samples_root = Path(str(cfg.paths.samples_root))
             reader = reader_cls(csv=predict_csv, samples_root=samples_root)
             extractor = extractor_cls()

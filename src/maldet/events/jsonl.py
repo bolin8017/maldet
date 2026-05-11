@@ -56,3 +56,24 @@ class JsonlEventLogger:
 
     def set_tags(self, tags: dict[str, str]) -> None:
         self._write({"kind": "tags", "tags": dict(tags)})
+
+    def log_model(
+        self,
+        model: Any,
+        flavor: str,
+        artifact_path: str = "model",
+        signature: Any = None,
+        input_example: Any = None,
+        pip_requirements: list[str] | None = None,
+    ) -> None:
+        self._write(
+            {
+                "kind": "model_logged",
+                "flavor": flavor,
+                "artifact_path": artifact_path,
+                "model_class": type(model).__name__,
+            }
+        )
+
+    def close(self) -> None:
+        return None

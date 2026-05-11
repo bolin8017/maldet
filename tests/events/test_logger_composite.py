@@ -27,6 +27,12 @@ class RecordingLogger:
     def set_tags(self, tags: dict[str, str]) -> None:
         self.calls.append(("set_tags", (), {"tags": tags}))
 
+    def log_model(self, model: Any, flavor: str, **kwargs: Any) -> None:
+        self.calls.append(("log_model", (flavor,), kwargs))
+
+    def close(self) -> None:
+        self.calls.append(("close", (), {}))
+
 
 def test_fanout_all_methods() -> None:
     a = RecordingLogger()

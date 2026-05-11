@@ -57,6 +57,12 @@ class RecordingLogger:
     def set_tags(self, tags: dict[str, str]) -> None:
         self.events.append(("tags", dict(tags)))
 
+    def log_model(self, **kwargs: Any) -> None:
+        self.events.append(("model", kwargs))
+
+    def close(self) -> None:
+        pass
+
 
 def _train_items() -> list[tuple[str, str]]:
     return [(f"{i:064x}", "Malware" if i % 2 else "Benign") for i in range(20)]
@@ -90,9 +96,10 @@ def test_save_writes_joblib(tmp_path: Path) -> None:
         logger=logger,
     )
     out = tmp_path / "model"
-    out.mkdir()
-    trainer.save(result, out)
-    assert (out / "model.joblib").exists()
+    # mlflow.sklearn.save_model owns out_dir creation; do not pre-mkdir.
+    trainer.save(result, out, logger=logger)
+    # 2.2.0: MLflow Models layout, not raw joblib.
+    assert (out / "MLmodel").exists()
 
 
 def test_load_roundtrips(tmp_path: Path) -> None:
@@ -109,8 +116,7 @@ def test_load_roundtrips(tmp_path: Path) -> None:
         logger=logger,
     )
     out = tmp_path / "model"
-    out.mkdir()
-    trainer.save(result, out)
+    trainer.save(result, out, logger=logger)
     loaded = trainer.load(out)
     x = np.array([[1, 1, 1, 1]], dtype=np.uint8)
     # all-1 vector is the Malware-extracted feature → should predict class 0 (Malware)

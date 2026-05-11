@@ -241,25 +241,63 @@ class LightningTrainer:
         logger.log_event("stage_end", stage="train", status="success")
         return TrainResult(model=model, best_checkpoint=best)
 
-    def save(self, result: TrainResult, out_dir: Path) -> None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        target = out_dir / "model.ckpt"
+    def save(
+        self,
+        result: TrainResult,
+        out_dir: Path,
+        *,
+        logger: EventLogger,
+        signature_input_sample: torch.Tensor | None = None,
+    ) -> None:
+        """Write MLflow Models layout via ``mlflow.pytorch.save_model``.
+
+        If a best-checkpoint exists, load its state_dict back into the
+        in-memory module so the saved model reflects the best epoch.
+        """
+        import mlflow.pytorch
+        from mlflow.models import infer_signature
+
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+
         if result.best_checkpoint is not None and result.best_checkpoint.exists():
-            shutil.copy2(result.best_checkpoint, target)
-            return
-        module = result.model
-        torch.save({"state_dict": module.state_dict()}, target)
+            state = torch.load(result.best_checkpoint, map_location="cpu")
+            sd = state.get("state_dict", state) if isinstance(state, dict) else state
+            result.model.load_state_dict(sd)
+
+        signature = None
+        input_example = None
+        if signature_input_sample is not None and len(signature_input_sample) > 0:
+            with torch.no_grad():
+                sample_in = signature_input_sample[:5]
+                result.model.eval()
+                sample_out = result.model(sample_in)
+            signature = infer_signature(sample_in.cpu().numpy(), sample_out.cpu().numpy())
+            input_example = sample_in.cpu().numpy()
+
+        mlflow.pytorch.save_model(
+            pytorch_model=result.model,
+            path=str(out_dir),
+            signature=signature,
+            input_example=input_example,
+        )
+        logger.log_artifact(out_dir, artifact_path="model")
 
     def load(
-        self, model_dir: Path, *, model_factory: Callable[[], pl.LightningModule] | None = None
+        self,
+        model_dir: Path,
+        *,
+        model_factory: Callable[[], pl.LightningModule] | None = None,
     ) -> pl.LightningModule:
-        ckpt = model_dir / "model.ckpt"
-        if model_factory is None:
-            raise ValueError("LightningTrainer.load requires model_factory to rebuild the module")
-        module = model_factory()
-        state = torch.load(ckpt, map_location="cpu")
-        if "state_dict" in state:
-            module.load_state_dict(state["state_dict"])
-        else:
-            module.load_state_dict(state)
-        return module
+        """Load via ``mlflow.pytorch.load_model`` — factory no longer needed."""
+        import mlflow.pytorch
+
+        # model_factory kept for backward-compatibility with custom trainers
+        # that subclass LightningTrainer and override load(); ignored here.
+        del model_factory
+        # mlflow.pytorch.load_model is typed Any in stubs; the actual return
+        # is a torch.nn.Module subclass. LightningModule extends nn.Module so
+        # the cast is sound for our use case (LightningTrainer.save always
+        # pickles a LightningModule).
+        loaded: pl.LightningModule = mlflow.pytorch.load_model(str(model_dir))
+        return loaded

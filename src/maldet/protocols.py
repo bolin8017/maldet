@@ -37,6 +37,16 @@ class EventLogger(Protocol):
     def log_artifact(self, path: Path, artifact_path: str | None = None) -> None: ...
     def log_event(self, kind: str, **payload: Any) -> None: ...
     def set_tags(self, tags: dict[str, str]) -> None: ...
+    def log_model(
+        self,
+        model: Any,
+        flavor: str,
+        artifact_path: str = "model",
+        signature: Any = None,
+        input_example: Any = None,
+        pip_requirements: list[str] | None = None,
+    ) -> None: ...
+    def close(self) -> None: ...
 
 
 @runtime_checkable
@@ -51,7 +61,14 @@ class Trainer(Protocol):
         val: SampleReader | None = None,
         logger: EventLogger,
     ) -> TrainResult: ...
-    def save(self, result: TrainResult, out_dir: Path) -> None: ...
+    def save(
+        self,
+        result: TrainResult,
+        out_dir: Path,
+        *,
+        logger: EventLogger,
+        signature_input_sample: Any | None = None,
+    ) -> None: ...
     def load(self, model_dir: Path) -> Any: ...
 
 

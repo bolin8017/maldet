@@ -47,3 +47,25 @@ class CompositeEventLogger:
 
     def set_tags(self, tags: dict[str, str]) -> None:
         self._fanout("set_tags", tags)
+
+    def log_model(
+        self,
+        model: Any,
+        flavor: str,
+        artifact_path: str = "model",
+        signature: Any = None,
+        input_example: Any = None,
+        pip_requirements: list[str] | None = None,
+    ) -> None:
+        self._fanout(
+            "log_model",
+            model,
+            flavor,
+            artifact_path,
+            signature,
+            input_example,
+            pip_requirements,
+        )
+
+    def close(self) -> None:
+        self._fanout("close")
