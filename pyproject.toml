@@ -48,7 +48,15 @@ lightning = [
     "torch>=2.2,<2.7",
     "torchmetrics>=1.3",
 ]
-mlflow = ["mlflow>=2.20"]
+mlflow = [
+    "mlflow>=2.20",
+    # psutil + pynvml power MLflow 2.8+ built-in system metrics
+    # (MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=true). Without these the
+    # mlflow system-metrics module silently no-ops the system/* metrics —
+    # see lolday spec 2026-05-11-mlflow-data-model-redesign-design.md § 5.6.
+    "psutil>=6.0",
+    "pynvml>=12.0",
+]
 all = ["maldet[lightning,mlflow]"]
 dev = [
     "pytest>=8.0",

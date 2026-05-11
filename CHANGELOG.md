@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the
 
 ## [Unreleased]
 
+## [2.2.1] — 2026-05-11
+
+### Changed
+
+- `[mlflow]` extra now also pulls in `psutil>=6.0` and `pynvml>=12.0`. Without these MLflow 2.8+ silently no-ops `MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=true`. Detector authors who install `maldet[mlflow]` now get full `system/*` metrics (CPU + memory always; per-GPU when NVIDIA driver visible) automatically, with no Dockerfile edits.
+
 ## [2.2.0] — 2026-05-11
 
 ### BREAKING
